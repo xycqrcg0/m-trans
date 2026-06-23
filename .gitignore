@@ -52,5 +52,5 @@ MANIFEST
 cert.pem
 key.pem
 
-# Local commit log (not part of shared history)
-COMMIT_LOG.md
+# Model weights (too large for git; download separately)
+models/

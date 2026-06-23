@@ -109,7 +109,7 @@ class MangaTranslator:
         self.post_dict = params.get('post_dict', None)
         self.font_path = None
         self.use_mtpe = False
-        self.kernel_size = None
+        self.kernel_size = 5
         self.device = None
         self._gpu_limited_memory = False
         self.ignore_errors = False
@@ -170,7 +170,7 @@ class MangaTranslator:
         if params.get('model_dir'):
             ModelWrapper._MODEL_DIR = params.get('model_dir')
         #todo: fix why is kernel size loaded in the constructor
-        self.kernel_size = params.get('kernel_size', None)
+        self.kernel_size = params.get('kernel_size', 5)
         # Set input files
         self.input_files = params.get('input', [])
         # Set save_text
