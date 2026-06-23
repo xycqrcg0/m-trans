@@ -51,36 +51,70 @@ async def google_translate_batch(texts: list[str], target_lang: str = "zh-CN") -
     return results
 
 
-async def run_pipeline(input_path: Path, output_dir: Path) -> None:
+async def run_pipeline(
+    input_path: Path,
+    output_dir: Path,
+    detector_key: Detector,
+    ocr_key: Ocr,
+    detection_size: int,
+) -> None:
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input image not found: {input_path}")
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    translator = MangaTranslator()
+    translator = MangaTranslator({"kernel_size": 7})
     config = Config(
         translator=TranslatorConfig(translator=Translator.original, target_lang="CHS"),
-        detector=DetectorConfig(detector=Detector.default, detection_size=512),
-        ocr=OcrConfig(ocr=Ocr.ocr32px),
+        detector=DetectorConfig(detector=detector_key, detection_size=detection_size),
+        ocr=OcrConfig(ocr=ocr_key),
         inpainter=InpainterConfig(inpainter=Inpainter.lama_mpe),
         renderer=RenderConfig(renderer=Renderer.none),
     )
+    config.mask_dilation_offset = 28
 
     image = Image.open(input_path)
     ctx = await translator.translate(image, config)
 
-    texts = [region.text for region in ctx["text_regions"]]
+    regions = ctx.get("text_regions") if isinstance(ctx, dict) else None
+    if not regions:
+        payload = {
+            "input": str(input_path),
+            "message": "No text regions detected. Nothing to translate/render.",
+            "context_keys": sorted(list(ctx.keys())) if isinstance(ctx, dict) else [],
+        }
+        result = ctx.get("result") if isinstance(ctx, dict) else None
+        if result is not None:
+            result_path = output_dir / "result-no-text.png"
+            result.save(result_path)
+            payload["result_image"] = str(result_path)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    texts = [region.text for region in regions]
     translations = await google_translate_batch(texts, target_lang="zh-CN")
 
-    for region, translated in zip(ctx["text_regions"], translations):
+    for region, translated in zip(regions, translations):
         region.translation = translated
         region.target_lang = "CHS"
 
-    rendered = await dispatch_rendering(ctx["img_inpainted"].copy(), ctx["text_regions"])
+    inpainted = ctx.get("img_inpainted")
+    if inpainted is None:
+        raise RuntimeError("Pipeline completed without img_inpainted in context")
+
+    rendered = await dispatch_rendering(inpainted.copy(), regions)
 
     # Save artifacts
-    Image.fromarray(ctx["img_inpainted"]).save(output_dir / "inpainted.png")
+    Image.fromarray(inpainted).save(output_dir / "inpainted.png")
     Image.fromarray(rendered).save(output_dir / "rendered.png")
 
     summary = {
         "input": str(input_path),
+        "detector": str(detector_key),
+        "ocr": str(ocr_key),
+        "detection_size": detection_size,
+        "mask_dilation_offset": config.mask_dilation_offset,
+        "kernel_size": translator.kernel_size,
         "outputs": {
             "inpainted": str(output_dir / "inpainted.png"),
             "rendered": str(output_dir / "rendered.png"),
@@ -90,18 +124,22 @@ async def run_pipeline(input_path: Path, output_dir: Path) -> None:
                 "text": region.text,
                 "translation": region.translation,
             }
-            for region in ctx["text_regions"]
+            for region in regions
         ],
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run end-to-end OCR -> Google Translate -> inpaint -> render test")
     parser.add_argument("input", type=Path, help="Input manga image path")
     parser.add_argument("--output-dir", type=Path, default=Path("/tmp/google-pipeline-out"))
+    parser.add_argument("--detector", choices=["default", "ctd"], default="ctd")
+    parser.add_argument("--ocr", choices=["ocr32px", "ocr48px_ctc"], default="ocr32px")
+    parser.add_argument("--detection-size", type=int, default=1024)
     args = parser.parse_args()
-    asyncio.run(run_pipeline(args.input, args.output_dir))
+    detector_key = Detector.ctd if args.detector == "ctd" else Detector.default
+    ocr_key = Ocr.ocr48px_ctc if args.ocr == "ocr48px_ctc" else Ocr.ocr32px
+    asyncio.run(run_pipeline(args.input, args.output_dir, detector_key, ocr_key, args.detection_size))
 
 
 if __name__ == "__main__":
