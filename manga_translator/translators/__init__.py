@@ -12,15 +12,10 @@ from .papago import PapagoTranslator
 from .caiyun import CaiyunTranslator
 from .chatgpt import OpenAITranslator
 from .chatgpt_2stage import ChatGPT2StageTranslator
-from .nllb import NLLBTranslator, NLLBBigTranslator
 from .sugoi import JparacrawlTranslator, JparacrawlBigTranslator, SugoiTranslator
-from .m2m100 import M2M100Translator, M2M100BigTranslator
-from .mbart50 import MBart50Translator
-from .selective import SelectiveOfflineTranslator, prepare as prepare_selective_translator
 from .none import NoneTranslator
 from .original import OriginalTranslator
 from .sakura import SakuraTranslator
-from .qwen2 import Qwen2Translator, Qwen2BigTranslator
 from .groq import GroqTranslator
 from .gemini import GeminiTranslator
 from .gemini_2stage import Gemini2StageTranslator
@@ -29,17 +24,9 @@ from ..config import Translator, TranslatorConfig, TranslatorChain
 from ..utils import Context
 
 OFFLINE_TRANSLATORS = {
-    Translator.offline: SelectiveOfflineTranslator,
-    Translator.nllb: NLLBTranslator,
-    Translator.nllb_big: NLLBBigTranslator,
     Translator.sugoi: SugoiTranslator,
     Translator.jparacrawl: JparacrawlTranslator,
     Translator.jparacrawl_big: JparacrawlBigTranslator,
-    Translator.m2m100: M2M100Translator,
-    Translator.m2m100_big: M2M100BigTranslator,
-    Translator.mbart50: MBart50Translator,
-    Translator.qwen2: Qwen2Translator,
-    Translator.qwen2_big: Qwen2BigTranslator,
 }
 
 GPT_TRANSLATORS = {
@@ -76,7 +63,6 @@ def get_translator(key: Translator, *args, **kwargs) -> CommonTranslator:
         translator_cache[key] = translator(*args, **kwargs)
     return translator_cache[key]
 
-prepare_selective_translator(get_translator)
 
 async def prepare(chain: TranslatorChain):
     for key, tgt_lang in chain.chain:

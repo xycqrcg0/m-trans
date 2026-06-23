@@ -123,17 +123,9 @@ class Translator(str, Enum):
     gemini = "gemini"
     gemini_2stage = "gemini_2stage"
     custom_openai = "custom_openai"
-    offline = "offline"
-    nllb = "nllb"
-    nllb_big = "nllb_big"
     sugoi = "sugoi"
     jparacrawl = "jparacrawl"
     jparacrawl_big = "jparacrawl_big"
-    m2m100 = "m2m100"
-    m2m100_big = "m2m100_big"
-    mbart50 = "mbart50"
-    qwen2 = "qwen2"
-    qwen2_big = "qwen2_big"
 
     def __str__(self):
         return self.name
