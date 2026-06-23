@@ -1,11 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "manga-image-translator"
+name = "m-trans"
 version = "0.1.0"
-description = ""
+description = "Manga image translation engine — fork of manga-image-translator"
 authors = []
 readme = "README.md"
 requires-python = ">=3.10, <3.12"
 license = "GPL-3.0-only"
+
+[tool.hatch.build.targets.wheel]
+packages = ["manga_translator"]
 
 [tool.isort]
 profile = 'black'
