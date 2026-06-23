@@ -432,6 +432,14 @@ class MangaTranslator:
             ctx.result = ctx.upscaled
             return await self._revert_upscale(config, ctx)
 
+        # -- Polish (LLM refinement of translation results)
+        if self._polish_fn is not None:
+            await self._report_progress('polishing')
+            try:
+                await self._polish_fn(ctx.text_regions)
+            except Exception as e:
+                logger.error(f"Polish failed: {e}, falling back to raw translation")
+
         # -- Mask refinement
         # (Delayed to take advantage of the region filtering done after ocr and translation)
         if ctx.mask is None:
@@ -1286,6 +1294,12 @@ class MangaTranslator:
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         return result_path
 
+    def set_polish_fn(self, fn):
+        """注册润色回调，翻译完成后、渲染前调用。
+        fn(text_regions: list) 原地修改 text_regions[].translation。
+        """
+        self._polish_fn = fn
+
     def add_progress_hook(self, ph):
         self._progress_hooks.append(ph)
 
@@ -1301,6 +1315,7 @@ class MangaTranslator:
             'ocr': 'Running ocr',
             'mask-generation': 'Running mask refinement',
             'translating': 'Running text translation',
+            'polishing': 'Running LLM polish',
             'rendering': 'Running rendering',
             'colorizing': 'Running colorization',
             'downscaling': 'Running downscaling',
