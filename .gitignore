@@ -54,3 +54,10 @@ key.pem
 
 # Model weights (too large for git; download separately)
 models/
+
+/tmp
+
+# Backend runtime storage
+storage/uploads/
+storage/results/
+storage/tasks/

@@ -10,9 +10,16 @@ authors = []
 readme = "README.md"
 requires-python = ">=3.10, <3.12"
 license = "GPL-3.0-only"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic-settings>=2.3.0",
+    "python-multipart>=0.0.9",
+    "aiofiles>=23.0.0",
+]
 
 [tool.hatch.build.targets.wheel]
-packages = ["manga_translator"]
+packages = ["manga_translator", "app", "config"]
 
 [tool.isort]
 profile = 'black'
