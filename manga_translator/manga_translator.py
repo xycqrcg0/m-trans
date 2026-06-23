@@ -104,6 +104,7 @@ class MangaTranslator:
     batch_size: int
 
     def __init__(self, params: dict = None):
+        params = params or {}
         self.pre_dict = params.get('pre_dict', None)
         self.post_dict = params.get('post_dict', None)
         self.font_path = None
@@ -114,161 +115,32 @@ class MangaTranslator:
         self.ignore_errors = False
         self.verbose = False
         self.models_ttl = 0
-        self.batch_size = 1  # 默认不批量处理
+        self.batch_size = 1
 
         self._progress_hooks = []
         self._add_logger_hook()
 
-        params = params or {}
-        
-        self._batch_contexts = []  # 存储批量处理的上下文
-        self._batch_configs = []   # 存储批量处理的配置
+        self._batch_contexts = []
+        self._batch_configs = []
         self.disable_memory_optimization = params.get('disable_memory_optimization', False)
-        # batch_concurrent 会在 parse_init_params 中验证并设置
         self.batch_concurrent = params.get('batch_concurrent', False)
-        
+
         self.parse_init_params(params)
         self.result_sub_folder = ''
-
-        # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
-        # in PyTorch 1.12 and later.
-        torch.backends.cuda.matmul.allow_tf32 = True
-
-        # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
-        torch.backends.cudnn.allow_tf32 = True
 
         self._model_usage_timestamps = {}
         self._detector_cleanup_task = None
         self.prep_manual = params.get('prep_manual', None)
         self.context_size = params.get('context_size', 0)
         self.all_page_translations = []
-        self._original_page_texts = []  # 存储原文页面数据，用于并发模式下的上下文
+        self._original_page_texts = []
 
-        # 调试图片管理相关属性
-        self._current_image_context = None  # 存储当前处理图片的上下文信息
-        self._saved_image_contexts = {}     # 存储批量处理中每个图片的上下文信息
-        
-        # 设置日志文件
-        self._setup_log_file()
+        self._current_image_context = None
+        self._saved_image_contexts = {}
 
-    def _setup_log_file(self):
-        """设置日志文件，在result文件夹下创建带时间戳的log文件"""
-        try:
-            # 创建result目录
-            result_dir = os.path.join(BASE_PATH, 'result')
-            os.makedirs(result_dir, exist_ok=True)
-            
-            # 生成带时间戳的日志文件名
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            log_filename = f"log_{timestamp}.txt"
-            log_path = os.path.join(result_dir, log_filename)
-            
-            # 配置文件日志处理器
-            file_handler = logging.FileHandler(log_path, encoding='utf-8')
-            file_handler.setLevel(logging.DEBUG)
-            # 使用自定义格式器，保持与控制台输出一致
-            from .utils.log import Formatter
-            formatter = Formatter()
-            file_handler.setFormatter(formatter)
-            
-            # 添加到manga-translator根logger以捕获所有输出
-            mt_logger = logging.getLogger('manga-translator')
-            mt_logger.addHandler(file_handler)
-            if not mt_logger.level or mt_logger.level > logging.DEBUG:
-                mt_logger.setLevel(logging.DEBUG)
-            
-            # 保存日志文件路径供后续使用
-            self._log_file_path = log_path
-            
-            # 简单的print重定向
-            import builtins
-            original_print = builtins.print
-            
-            def log_print(*args, **kwargs):
-                # 正常打印到控制台
-                original_print(*args, **kwargs)
-                # 同时写入日志文件
-                try:
-                    import io
-                    buffer = io.StringIO()
-                    original_print(*args, file=buffer, **kwargs)
-                    output = buffer.getvalue()
-                    if output.strip():
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write(output)
-                except Exception:
-                    pass
-            
-            builtins.print = log_print
-            
-            # Rich Console输出重定向
-            try:
-                from rich.console import Console
-                import sys
-                
-                # 创建一个自定义的文件对象，同时写入控制台和日志文件
-                class TeeFile:
-                    def __init__(self, log_file_path, original_file):
-                        self.log_file_path = log_file_path
-                        self.original_file = original_file
-                    
-                    def write(self, text):
-                        # 写入原始输出
-                        self.original_file.write(text)
-                        # 写入日志文件
-                        try:
-                            if text.strip():
-                                with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                                    f.write(text)
-                        except Exception:
-                            pass
-                        return len(text)
-                    
-                    def flush(self):
-                        self.original_file.flush()
-                    
-                    def __getattr__(self, name):
-                        return getattr(self.original_file, name)
-                
-                # 创建一个仅用于日志记录的Console（无颜色、无样式）
-                class LogOnlyFile:
-                    def __init__(self, log_file_path):
-                        self.log_file_path = log_file_path
-                    
-                    def write(self, text):
-                        try:
-                            if text.strip():
-                                with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                                    f.write(text)
-                        except Exception:
-                            pass
-                        return len(text)
-                    
-                    def flush(self):
-                        pass
-                    
-                    def isatty(self):
-                        return False
-                
-                # 为日志创建纯文本console
-                log_file_only = LogOnlyFile(log_path)
-                log_console = Console(file=log_file_only, force_terminal=False, no_color=True, width=80)
-                
-                # 创建带颜色的控制台console
-                display_console = Console(force_terminal=True)
-                
-                # 全局设置console实例，供translator使用
-                global _global_console, _log_console
-                _global_console = display_console  # 控制台显示用
-                _log_console = log_console         # 日志记录用
-                
-            except Exception as e:
-                logger.debug(f"Failed to setup rich console logging: {e}")
-            
-            logger.info(f"Log file created: {log_path}")
-        except Exception as e:
-            print(f"Failed to setup log file: {e}")
+        # polish callback — set via set_polish_fn(), called after translation
+        self._polish_fn = None
+
 
     def parse_init_params(self, params: dict):
         self.verbose = params.get('verbose', False)
