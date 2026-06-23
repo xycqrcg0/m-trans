@@ -1,0 +1,107 @@
+{
+  "id": "default",
+  "name": "二次元常用术语 (built-in)",
+  "created_at": "2026-06-23T13:16:19.500989+00:00",
+  "entries": [
+    {
+      "source": "勇者",
+      "target": "勇者",
+      "note": "default hero title — keep as-is or translate contextually"
+    },
+    {
+      "source": "魔王",
+      "target": "魔王",
+      "note": "demon king / demon lord"
+    },
+    {
+      "source": "かめはめ波",
+      "target": "龟派气功",
+      "note": "Dragon Ball signature move"
+    },
+    {
+      "source": "ちから",
+      "target": "力量 / 力",
+      "note": "power"
+    },
+    {
+      "source": "たすけて",
+      "target": "救命",
+      "note": "help!"
+    },
+    {
+      "source": "まって",
+      "target": "等等",
+      "note": "wait"
+    },
+    {
+      "source": "だいじょうぶ",
+      "target": "没关系",
+      "note": "it's fine / don't worry"
+    },
+    {
+      "source": "すごい",
+      "target": "好厉害",
+      "note": "amazing"
+    },
+    {
+      "source": "ばか",
+      "target": "笨蛋",
+      "note": "idiot/ fool"
+    },
+    {
+      "source": "やった",
+      "target": "做到了",
+      "note": "I did it!"
+    },
+    {
+      "source": "にんげん",
+      "target": "人类",
+      "note": "human"
+    },
+    {
+      "source": "せんぱい",
+      "target": "前辈",
+      "note": "senior"
+    },
+    {
+      "source": "こうはい",
+      "target": "后辈",
+      "note": "junior"
+    },
+    {
+      "source": "おにいちゃん",
+      "target": "哥哥",
+      "note": "older brother (affectionate)"
+    },
+    {
+      "source": "おねえちゃん",
+      "target": "姐姐",
+      "note": "older sister (affectionate)"
+    },
+    {
+      "source": "センセイ",
+      "target": "老师 / 先生",
+      "note": "teacher / master"
+    },
+    {
+      "source": "ワンピース",
+      "target": "海贼王",
+      "note": "One Piece"
+    },
+    {
+      "source": "ナルト",
+      "target": "火影忍者",
+      "note": "Naruto"
+    },
+    {
+      "source": "主人公",
+      "target": "主角",
+      "note": "main character / protagonist"
+    },
+    {
+      "source": "仲間",
+      "target": "伙伴",
+      "note": "companion / friend"
+    }
+  ]
+}

@@ -4,19 +4,22 @@ from .default import DefaultDetector
 from .dbnet_convnext import DBConvNextDetector
 from .ctd import ComicTextDetector
 from .craft import CRAFTDetector
-from .paddle_rust import PaddleDetector
+try:
+    from .paddle_rust import PaddleDetector
+except ImportError:
+    PaddleDetector = None
 from .none import NoneDetector
 from .common import CommonDetector, OfflineDetector
 from ..config import Detector
-
 DETECTORS = {
     Detector.default: DefaultDetector,
     Detector.dbconvnext: DBConvNextDetector,
     Detector.ctd: ComicTextDetector,
     Detector.craft: CRAFTDetector,
-    Detector.paddle: PaddleDetector,
     Detector.none: NoneDetector,
 }
+if PaddleDetector is not None:
+    DETECTORS[Detector.paddle] = PaddleDetector
 detector_cache = {}
 
 def get_detector(key: Detector, *args, **kwargs) -> CommonDetector:

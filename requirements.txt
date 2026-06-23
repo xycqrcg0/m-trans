@@ -45,7 +45,6 @@ pyhyphen
 langcodes[data]
 manga-ocr
 langdetect
-pydensecrf@https://github.com/lucasb-eyer/pydensecrf/archive/refs/heads/master.zip
 accelerate
 bitsandbytes
 pydantic==2.5.0
