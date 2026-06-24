@@ -5,7 +5,7 @@ import py3langid as langid
 from .common import *
 from .baidu import BaiduTranslator
 from .deepseek import DeepseekTranslator
-# from .google import GoogleTranslator
+from .google_direct import GoogleDirectTranslator
 from .youdao import YoudaoTranslator
 from .deepl import DeeplTranslator
 from .papago import PapagoTranslator
@@ -41,7 +41,7 @@ GPT_TRANSLATORS = {
 
 
 TRANSLATORS = {
-    # 'google': GoogleTranslator,
+    Translator.google: GoogleDirectTranslator,
     Translator.youdao: YoudaoTranslator,
     Translator.baidu: BaiduTranslator,
     Translator.deepl: DeeplTranslator,

@@ -169,6 +169,7 @@ async def get_options():
         return [OptionItem(id=k, name=v) for k, v in values.items()]
 
     translators = [
+        TranslatorOption(id=Translator.google.value, name="Google (web)", requires_key=False),
         TranslatorOption(id=Translator.youdao.value, name="Youdao", requires_key=True),
         TranslatorOption(id=Translator.baidu.value, name="Baidu", requires_key=True),
         TranslatorOption(id=Translator.deepl.value, name="DeepL", requires_key=True),

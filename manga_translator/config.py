@@ -108,6 +108,7 @@ class Ocr(str, Enum):
     mocr = "mocr"
 
 class Translator(str, Enum):
+    google = "google"
     youdao = "youdao"
     baidu = "baidu"
     deepl = "deepl"

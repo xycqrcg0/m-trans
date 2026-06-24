@@ -74,8 +74,8 @@ def delete_task_files(task: Task) -> None:
             pass
 
 
-async def _make_inline_hook(task_id: str):
-    """Return an async progress hook that pushes events to a threading.Queue (thread-safe)."""
+def _make_inline_hook(task_id: str):
+    """Return a coroutine function for progress. Callable from any thread's event loop."""
 
     async def hook(state: str, finished: bool) -> None:
         if state.startswith("rendering_folder:") or state.startswith("final_ready:"):
@@ -143,7 +143,7 @@ def _execute_task_blocking(task: Task) -> None:
             return await run_pipeline(
                 image=image,
                 task_cfg=task.config,
-                on_progress=await _make_inline_hook(task.id),
+                on_progress=_make_inline_hook(task.id),
             )
 
         ctx = asyncio.run(_run())
