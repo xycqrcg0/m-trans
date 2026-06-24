@@ -89,3 +89,4 @@ class GoogleDirectTranslator(CommonTranslator):
 
                 results.append(translated)
                 await asyncio.sleep(0.3)  # gentle rate limit between queries
+        return results
