@@ -71,8 +71,84 @@ def refine_mask(rgbimg, rawmask):
         import pydensecrf.densecrf as dcrf
     except ImportError:
         logger = __import__('logging').getLogger('manga_translator.mask_refinement')
-        logger.warning('pydensecrf not available, skipping CRF refinement')
-        return rawmask
+        logger.warning('pydensecrf not available, using color-based fallback')
+        return _color_based_refine(rgbimg, rawmask)
+    if len(rawmask.shape) == 2:
+        rawmask = rawmask[:, :, None]
+    mask_softmax = np.concatenate([cv2.bitwise_not(rawmask)[:, :, None], rawmask], axis=2)
+    mask_softmax = mask_softmax.astype(np.float32) / 255.0
+    n_classes = 2
+    feat_first = mask_softmax.transpose((2, 0, 1)).reshape((n_classes,-1))
+    unary = unary_from_softmax(feat_first)
+    unary = np.ascontiguousarray(unary)
+
+    d = dcrf.DenseCRF2D(rgbimg.shape[1], rgbimg.shape[0], n_classes)
+
+    d.setUnaryEnergy(unary)
+    d.addPairwiseGaussian(sxy=1, compat=3, kernel=dcrf.DIAG_KERNEL,
+                            normalization=dcrf.NO_NORMALIZATION)
+
+    d.addPairwiseBilateral(sxy=23, srgb=7, rgbim=rgbimg,
+                        compat=20,
+                        kernel=dcrf.DIAG_KERNEL,
+                        normalization=dcrf.NO_NORMALIZATION)
+    Q = d.inference(5)
+    res = np.argmax(Q, axis=0).reshape((rgbimg.shape[0], rgbimg.shape[1]))
+    crf_mask = np.array(res * 255, dtype=np.uint8)
+    return crf_mask
+
+
+def _color_based_refine(rgbimg: np.ndarray, rawmask: np.ndarray) -> np.ndarray:
+    """Fallback mask refinement using color-based flood fill.
+
+    When pydensecrf is unavailable, this uses the text region's dominant
+    background color to expand the mask to cover text pixels that blend
+    into colorful backgrounds (e.g. small text on saturated colors).
+    """
+    if len(rawmask.shape) == 3:
+        rawmask = rawmask[:, :, 0]
+    mask = rawmask.copy()
+
+    # Find mask bounding box
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
+        return mask
+    # Expand ROI slightly beyond mask
+    pad = max(3, int(0.1 * max(xs.max() - xs.min(), ys.max() - ys.min())))
+    x1 = max(0, xs.min() - pad)
+    y1 = max(0, ys.min() - pad)
+    x2 = min(rgbimg.shape[1], xs.max() + pad)
+    y2 = min(rgbimg.shape[0], ys.max() + pad)
+
+    roi_img = rgbimg[y1:y2, x1:x2]
+    roi_mask = mask[y1:y2, x1:x2]
+
+    # Sample background color from mask border (just outside the text)
+    border_mask = cv2.dilate(roi_mask, np.ones((5, 5), np.uint8)) - roi_mask
+    border_pixels = roi_img[border_mask > 0]
+    if len(border_pixels) < 5:
+        return mask
+
+    bg_color = np.median(border_pixels, axis=0).astype(np.uint8)
+
+    # Compute color distance from background
+    diff = cv2.absdiff(roi_img, np.full_like(roi_img, bg_color))
+    color_dist = np.sqrt(np.sum(diff.astype(np.float32) ** 2, axis=2))
+
+    # Pixels that differ from background are likely text → add to mask
+    # Use adaptive threshold based on the color distance distribution
+    thresh = max(30, int(np.percentile(color_dist[roi_mask > 0], 25)))
+    text_pixels = (color_dist > thresh).astype(np.uint8) * 255
+
+    # Only add pixels near existing mask (within dilation radius)
+    near_mask = cv2.dilate(roi_mask, np.ones((7, 7), np.uint8))
+    new_mask = cv2.bitwise_or(roi_mask, cv2.bitwise_and(text_pixels, text_pixels, mask=near_mask))
+
+    # Smooth the result
+    new_mask = cv2.morphologyEx(new_mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+
+    mask[y1:y2, x1:x2] = new_mask
+    return mask
     if len(rawmask.shape) == 2:
         rawmask = rawmask[:, :, None]
     mask_softmax = np.concatenate([cv2.bitwise_not(rawmask)[:, :, None], rawmask], axis=2)
