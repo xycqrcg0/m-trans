@@ -57,6 +57,9 @@ models/
 
 /tmp
 
+# Local planning/docs (not tracked yet)
+/docs
+
 # Backend runtime storage
 storage/uploads/
 storage/results/
