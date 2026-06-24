@@ -650,6 +650,18 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
         if len(new_syls) == 0:
             if len(word) <= 3:
                 new_syls = [word]
+            elif re.search(r'[^\x00-\x7F]', word):
+                # CJK text: split on punctuation first, then by character
+                # This prevents breaking mid-phrase and prefers breaking at punctuation
+                parts = re.split(r'([，。！？、…——\-—~～（）\(\)\[\]【】「」『』""''<>《》])', word)
+                new_syls = []
+                for p in parts:
+                    if not p:
+                        continue
+                    if len(p) <= 2:
+                        new_syls.append(p)
+                    else:
+                        new_syls.extend(list(p))
             else:
                 new_syls = list(word)
 
