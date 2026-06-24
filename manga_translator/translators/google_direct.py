@@ -34,9 +34,7 @@ _ENDPOINT = "https://translate.googleapis.com/translate_a/single"
 class GoogleDirectTranslator(CommonTranslator):
     """Google Translate via public web endpoint (no API key needed)."""
 
-    _LANGUAGE_CODE_MAP = {
-        google: mit for mit, google in _GOOGLE_LANG.items()
-    }
+    _LANGUAGE_CODE_MAP = _GOOGLE_LANG
 
     def __init__(self):
         super().__init__()
@@ -48,9 +46,9 @@ class GoogleDirectTranslator(CommonTranslator):
         if not queries:
             return []
 
-        to_lang_code = _GOOGLE_LANG.get(to_lang, to_lang)
         results: list[str] = []
-
+        # parse_language_codes already converted to Google short code
+        to_lang_code = to_lang if to_lang in _GOOGLE_LANG.values() else _GOOGLE_LANG.get(to_lang, to_lang)
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             "Accept": "*/*",
