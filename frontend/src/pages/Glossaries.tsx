@@ -10,14 +10,18 @@ export default function Glossaries() {
   const [newName, setNewName] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-
+  const [error, setError] = useState<string | null>(null)
   async function load() {
-    const list = await listGlossaries()
-    setGlossaries(list)
+    try {
+      const list = await listGlossaries()
+      setGlossaries(list)
+      setError(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '加载术语库失败')
+    }
   }
 
   useEffect(() => { load() }, [])
-
   async function handleCreate() {
     if (!newName.trim()) return
     const g = await createGlossary(newName.trim())
@@ -71,6 +75,8 @@ export default function Glossaries() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {error && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
       <div className="grid gap-6 md:grid-cols-[240px_1fr]">
         <div className="space-y-2">

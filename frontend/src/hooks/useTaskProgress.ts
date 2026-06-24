@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { subscribeProgress, type ProgressEvent, type TaskStatus } from '@/lib/api'
+import { subscribeProgress, getTask, type ProgressEvent, type TaskStatus } from '@/lib/api'
 
-interface TaskProgressState {
+export interface TaskProgressState {
   state: TaskStatus
   progress_pct: number
   message_cn: string
   done: boolean
 }
 
-export function useTaskProgress(taskId: string, skip: boolean) {
+export function useTaskProgress(taskId: string, skip: boolean): TaskProgressState {
   const [progress, setProgress] = useState<TaskProgressState>({
     state: 'pending',
     progress_pct: 0,
@@ -16,14 +16,38 @@ export function useTaskProgress(taskId: string, skip: boolean) {
     done: skip,
   })
   const unsubRef = useRef<(() => void) | null>(null)
+  const pollRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     if (skip) return
+
+    // SSE subscription
     unsubRef.current = subscribeProgress(
       taskId,
       (e: ProgressEvent) => setProgress(e),
+      () => {
+        // On SSE error, fall back to polling
+        pollRef.current = setInterval(async () => {
+          try {
+            const task = await getTask(taskId)
+            if (task.status === 'done' || task.status === 'failed') {
+              setProgress({
+                state: task.status,
+                progress_pct: task.status === 'done' ? 100 : 0,
+                message_cn: task.status === 'done' ? '完成' : (task.error ?? '失败'),
+                done: true,
+              })
+              clearInterval(pollRef.current)
+            }
+          } catch { /* ignore */ }
+        }, 2000)
+      },
     )
-    return () => unsubRef.current?.()
+
+    return () => {
+      unsubRef.current?.()
+      clearInterval(pollRef.current)
+    }
   }, [taskId, skip])
 
   return progress
