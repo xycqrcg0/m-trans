@@ -51,7 +51,11 @@ class GoogleDirectTranslator(CommonTranslator):
         to_lang_code = _GOOGLE_LANG.get(to_lang, to_lang)
         results: list[str] = []
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+        }
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
             for text in queries:
                 if not text or not text.strip():
                     results.append(text)
