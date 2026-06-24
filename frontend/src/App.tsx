@@ -1,17 +1,16 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { Upload, ListTodo, Images, BookOpen } from 'lucide-react'
+import { Upload, ListTodo, BookOpen, Settings as SettingsIcon } from 'lucide-react'
 import Home from '@/pages/Home'
 import Tasks from '@/pages/Tasks'
 import TaskDetail from '@/pages/TaskDetail'
 import Gallery from '@/pages/Gallery'
-import Glossaries from '@/pages/Glossaries'
-
+import Settings from '@/pages/Settings'
 function Nav() {
   const links = [
     { to: '/', icon: Upload, label: '上传', end: true },
     { to: '/tasks', icon: ListTodo, label: '任务', end: false },
-    { to: '/gallery', icon: Images, label: '历史', end: false },
     { to: '/glossaries', icon: BookOpen, label: '术语库', end: false },
+    { to: '/settings', icon: SettingsIcon, label: '配置', end: false },
   ]
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
@@ -50,7 +49,7 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/gallery" element={<Gallery />} />
-            <Route path="/glossaries" element={<Glossaries />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>

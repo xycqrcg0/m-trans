@@ -17,7 +17,7 @@ export function ResultViewer({ originalUrl, resultUrl, textBlocks }: ResultViewe
           style={{ maxHeight: 600 }}
         />
         <div className="flex justify-between bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
-          <span>← 原图</span>
+          <span>← 擦字图</span>
           <span>译图 →</span>
         </div>
       </div>

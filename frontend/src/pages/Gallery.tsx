@@ -46,7 +46,7 @@ export default function Gallery() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {tasks.map((task) => {
           const filename = task.pages[0]?.filename ?? task.id
-          const resultUrl = getResultUrl(task.id)
+          const resultUrl = getResultUrl(task.id, 1)
           return (
             <div key={task.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
               <Link to={`/tasks/${task.id}`}>

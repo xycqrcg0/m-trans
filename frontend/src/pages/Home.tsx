@@ -1,19 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { createTask, type TaskConfig } from '@/lib/api'
+import { createTask, type TaskConfig, DEFAULT_CONFIG } from '@/lib/api'
 import { UploadZone } from '@/components/UploadZone'
 import { ConfigPanel } from '@/components/ConfigPanel'
 
 export default function Home() {
   const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
-  const [config, setConfig] = useState<Partial<TaskConfig>>({
-    target_lang: 'CHS',
-    translator: 'deepseek',
-    polish: true,
-    glossary_id: null,
-  })
+  const [config, setConfig] = useState<Partial<TaskConfig>>(DEFAULT_CONFIG)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,7 +17,7 @@ export default function Home() {
     setError(null)
     setLoading(true)
     try {
-      await createTask(files[0], config)
+      await createTask(files, config)
       navigate('/tasks')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '提交失败'

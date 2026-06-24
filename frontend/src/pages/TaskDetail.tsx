@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Download } from 'lucide-react'
-import { getTask, getResultUrl, type Task } from '@/lib/api'
+import { ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { getTask, getResultUrl, getInpaintedUrl, type Task } from '@/lib/api'
 import { ResultViewer } from '@/components/ResultViewer'
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const [task, setTask] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pageIdx, setPageIdx] = useState(0)
 
   useEffect(() => {
     if (!id) return
@@ -31,9 +32,10 @@ export default function TaskDetail() {
     </div>
   )
 
-  const page = task.pages[0]
-  const resultUrl = getResultUrl(task.id)
-  const originalUrl = `/api/tasks/${task.id}/upload`
+  const page = task.pages[pageIdx]
+  const totalPages = task.pages.length
+  const resultUrl = getResultUrl(task.id, pageIdx + 1)
+  const inpaintedUrl = getInpaintedUrl(task.id, pageIdx + 1)
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-6">
@@ -43,10 +45,10 @@ export default function TaskDetail() {
         </Link>
         <a
           href={resultUrl}
-          download={`translated_${task.id}.png`}
+          download={`translated_${task.id}_p${pageIdx + 1}.png`}
           className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
         >
-          <Download className="h-4 w-4" />下载译图 PNG
+          <Download className="h-4 w-4" />下载译图
         </a>
       </div>
 
@@ -55,8 +57,28 @@ export default function TaskDetail() {
         <p className="text-xs text-slate-400">{new Date(task.created_at).toLocaleString('zh-CN')}</p>
       </div>
 
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => setPageIdx(Math.max(0, pageIdx - 1))}
+            disabled={pageIdx === 0}
+            className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30 hover:bg-slate-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm text-slate-600">第 {pageIdx + 1} / {totalPages} 页</span>
+          <button
+            onClick={() => setPageIdx(Math.min(totalPages - 1, pageIdx + 1))}
+            disabled={pageIdx === totalPages - 1}
+            className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30 hover:bg-slate-50"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <ResultViewer
-        originalUrl={originalUrl}
+        originalUrl={inpaintedUrl}
         resultUrl={resultUrl}
         textBlocks={page?.text_blocks ?? []}
       />
