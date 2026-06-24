@@ -35,6 +35,8 @@ class TaskConfig(BaseModel):
     font_size_minimum: int = 10
     line_spacing: Optional[int] = None
     disable_font_border: bool = False
+    mask_dilation_offset: int = 30
+    mask_kernel_size: int = 5
 
 
 class TextBlockResult(BaseModel):

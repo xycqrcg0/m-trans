@@ -43,7 +43,7 @@ async def get_translator() -> MangaTranslator:
             _translator = MangaTranslator(
                 {
                     "use_gpu": settings.use_gpu,
-                    "kernel_size": 3,
+                    "kernel_size": 5,
                     "ignore_errors": True,
                     "pre_dict": str(_PRE_DICT),
                     "post_dict": str(_POST_DICT),
@@ -100,6 +100,8 @@ def _build_config(task_cfg: TaskConfig) -> Config:
             line_spacing=task_cfg.line_spacing if task_cfg.line_spacing is not None else 0,
             disable_font_border=task_cfg.disable_font_border,
         ),
+        mask_dilation_offset=task_cfg.mask_dilation_offset,
+        kernel_size=task_cfg.mask_kernel_size,
     )
 
 
