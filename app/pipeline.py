@@ -93,7 +93,13 @@ def _build_config(task_cfg: TaskConfig) -> Config:
         ocr=OcrConfig(ocr=ocr_key),
         translator=TranslatorConfig(translator=translator_key, target_lang=task_cfg.target_lang),
         inpainter=InpainterConfig(inpainter=inpainter_key),
-        render=RenderConfig(renderer=renderer_key),
+        render=RenderConfig(
+            renderer=renderer_key,
+            font_size_offset=task_cfg.font_size_offset,
+            font_size_minimum=task_cfg.font_size_minimum,
+            line_spacing=task_cfg.line_spacing if task_cfg.line_spacing is not None else 0,
+            disable_font_border=task_cfg.disable_font_border,
+        ),
     )
 
 
