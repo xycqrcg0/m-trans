@@ -154,10 +154,14 @@ def _execute_task_blocking(task: Task) -> None:
             result_path = result_dir / f"page_{page_idx:04d}_result.png"
             inpainted_path = result_dir / f"page_{page_idx:04d}_inpainted.png"
 
+            # Save inpainted (text-erased) image BEFORE result overwrites it
             if ctx.get("img_inpainted") is not None:
                 Image.fromarray(ctx["img_inpainted"]).save(inpainted_path)
+            # Save result (final with rendered text, or just inpainted if renderer=none)
             if ctx.get("result") is not None:
                 ctx["result"].save(result_path, format="PNG")
+            elif ctx.get("img_inpainted") is not None:
+                Image.fromarray(ctx["img_inpainted"]).save(result_path, format="PNG")
             else:
                 image.save(result_path, format="PNG")
 

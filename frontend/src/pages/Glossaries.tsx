@@ -11,13 +11,17 @@ export default function Glossaries() {
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   async function load() {
+    setLoading(true)
     try {
       const list = await listGlossaries()
       setGlossaries(list)
       setError(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '加载术语库失败')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -80,7 +84,8 @@ export default function Glossaries() {
 
       <div className="grid gap-6 md:grid-cols-[240px_1fr]">
         <div className="space-y-2">
-          {glossaries.length === 0 && (
+          {loading && <p className="py-8 text-center text-sm text-slate-400">加载中…</p>}
+          {!loading && glossaries.length === 0 && (
             <p className="py-8 text-center text-sm text-slate-400">暂无术语表</p>
           )}
           {glossaries.map((g) => (

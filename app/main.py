@@ -144,7 +144,7 @@ async def task_progress(task_id: str):
             if event.done:
                 break
 
-
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
 @app.get("/api/tasks/{task_id}/result", summary="下载结果图 PNG（按页码）")
 async def get_result(task_id: str, page: int = 1):
     task = worker.task_store.get(task_id) or worker.load_task(task_id)

@@ -102,11 +102,16 @@ def _build_config(task_cfg: TaskConfig) -> Config:
 
 
 def _make_polish_fn(task_cfg: TaskConfig):
-    """Create polish callback for non-GPT translators."""
+    """Create polish callback. Only activates when polish=true.
+
+    Glossary is applied here for non-GPT translators (Google, Youdao, etc.).
+    For GPT translators, glossary is injected via system message instead.
+    """
+    if not task_cfg.polish:
+        return None
+
     set_glossary_dir(settings.glossary_dir)
     glossary = load_glossary_mapping(task_cfg.glossary_id) if task_cfg.glossary_id else None
-    if not task_cfg.polish and not glossary:
-        return None
 
     async def _polish(text_regions: list) -> None:
         await polish_translations(
