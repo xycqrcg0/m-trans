@@ -1,26 +1,28 @@
 from __future__ import annotations
-
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import List
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from app import worker
 from app.models import (
     CreateTaskResponse,
     Glossary,
     GlossaryEntry,
     GlossaryMeta,
+    HealthResponse,
     OptionItem,
     OptionsResponse,
     Page,
     Task,
     TaskConfig,
     TaskStatus,
+    TranslatorConfigItem,
     TranslatorOption,
 )
 from config.settings import settings
@@ -59,14 +61,13 @@ app.add_middleware(
 )
 
 
-@app.post("/api/tasks", response_model=CreateTaskResponse, summary="创建翻译任务")
+@app.post("/api/tasks", response_model=CreateTaskResponse, summary="创建翻译任务（支持多图）")
 async def create_task(
-    image: UploadFile = File(..., description="漫画图片（JPG/PNG/WebP）"),
+    images: List[UploadFile] = File(..., description="漫画图片列表（JPG/PNG/WebP）"),
     config: str = Form(default="{}", description="TaskConfig JSON 字符串"),
 ):
-    content_type = image.content_type or ""
-    if not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="仅支持图片文件")
+    if not images:
+        raise HTTPException(status_code=400, detail="至少上传一张图片")
 
     try:
         cfg = TaskConfig.model_validate(json.loads(config))
@@ -76,17 +77,23 @@ async def create_task(
     task = Task(config=cfg)
     upload_dir = settings.upload_dir / task.id
     upload_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(image.filename or "image.jpg").suffix or ".jpg"
-    upload_path = upload_dir / f"original{suffix}"
 
-    content = await image.read()
-    if len(content) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="图片大小不得超过 20 MB")
-    upload_path.write_bytes(content)
+    pages: list[Page] = []
+    for idx, img in enumerate(images):
+        content_type = img.content_type or ""
+        if not content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail=f"文件 {img.filename} 不是图片")
+        content = await img.read()
+        if len(content) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"图片 {img.filename} 超过 20MB 限制")
+        suffix = Path(img.filename or f"image_{idx}.jpg").suffix or ".jpg"
+        upload_path = upload_dir / f"page_{idx:04d}{suffix}"
+        upload_path.write_bytes(content)
+        pages.append(Page(filename=img.filename or upload_path.name, upload_path=str(upload_path)))
 
-    task.pages = [Page(filename=image.filename or upload_path.name, upload_path=str(upload_path))]
+    task.pages = pages
     await worker.enqueue_task(task)
-    return CreateTaskResponse(task_id=task.id)
+    return CreateTaskResponse(task_id=task.id, page_count=len(pages))
 
 
 @app.get("/api/tasks", summary="任务列表")
@@ -137,20 +144,42 @@ async def task_progress(task_id: str):
                 break
 
 
-@app.get("/api/tasks/{task_id}/result", summary="下载结果图 PNG")
-async def get_result(task_id: str):
+@app.get("/api/tasks/{task_id}/result", summary="下载结果图 PNG（按页码）")
+async def get_result(task_id: str, page: int = 1):
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     if task.status != TaskStatus.done:
         raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
-    if not task.pages or not task.pages[0].result_path:
-        raise HTTPException(status_code=404, detail="结果文件不存在")
+    if page < 1 or page > len(task.pages):
+        raise HTTPException(status_code=404, detail=f"页码超出范围（1-{len(task.pages)}）")
 
-    result_path = Path(task.pages[0].result_path)
+    pg = task.pages[page - 1]
+    if not pg.result_path:
+        raise HTTPException(status_code=404, detail="结果文件不存在")
+    result_path = Path(pg.result_path)
     if not result_path.exists():
         raise HTTPException(status_code=404, detail="结果文件已被删除")
-    return FileResponse(path=str(result_path), media_type="image/png", filename=f"translated_{task_id}.png")
+    return FileResponse(path=str(result_path), media_type="image/png", filename=f"translated_{task_id}_p{page}.png")
+
+
+@app.get("/api/tasks/{task_id}/inpainted", summary="下载擦字图 PNG（按页码）")
+async def get_inpainted(task_id: str, page: int = 1):
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.status != TaskStatus.done:
+        raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
+    if page < 1 or page > len(task.pages):
+        raise HTTPException(status_code=404, detail=f"页码超出范围（1-{len(task.pages)}）")
+
+    pg = task.pages[page - 1]
+    if not pg.inpainted_path:
+        raise HTTPException(status_code=404, detail="擦字图不存在")
+    inpainted_path = Path(pg.inpainted_path)
+    if not inpainted_path.exists():
+        raise HTTPException(status_code=404, detail="擦字图已被删除")
+    return FileResponse(path=str(inpainted_path), media_type="image/png", filename=f"inpainted_{task_id}_p{page}.png")
 
 
 @app.delete("/api/tasks/{task_id}", summary="删除任务")
@@ -255,3 +284,89 @@ async def delete_glossary_api(glossary_id: str):
 async def delete_glossary_entry_api(glossary_id: str, source: str):
     glossary = delete_entry(glossary_id, source)
     return Glossary.model_validate(glossary.to_dict())
+
+
+
+# ── Translator configuration ──
+
+# In-memory store for translator configs (persisted to .env)
+_TRANSLATOR_ENV_MAP = {
+    "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE", "DEEPSEEK_MODEL"),
+    "chatgpt": ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL"),
+    "gemini": ("GEMINI_API_KEY", "", "GEMINI_MODEL"),
+    "groq": ("GROQ_API_KEY", "", "GROQ_MODEL"),
+    "custom_openai": ("CUSTOM_OPENAI_API_KEY", "CUSTOM_OPENAI_API_BASE", "CUSTOM_OPENAI_MODEL"),
+    "youdao": ("YOUDAO_APP_KEY", "", ""),
+    "baidu": ("BAIDU_APP_ID", "", ""),
+    "deepl": ("DEEPL_AUTH_KEY", "", ""),
+}
+
+
+@app.get("/api/health", response_model=HealthResponse, summary="健康检查")
+async def health_check():
+    import torch
+    return HealthResponse(
+        status="ok",
+        gpu=torch.cuda.is_available() if hasattr(torch, "cuda") else False,
+        version="0.1.0",
+    )
+
+
+@app.get("/api/config/translator", response_model=list[TranslatorConfigItem], summary="获取翻译器配置状态")
+async def get_translator_configs():
+    result: list[TranslatorConfigItem] = []
+    for tid, (key_env, base_env, model_env) in _TRANSLATOR_ENV_MAP.items():
+        api_key = os.environ.get(key_env, "")
+        api_base = os.environ.get(base_env, "") if base_env else ""
+        model = os.environ.get(model_env, "") if model_env else ""
+        result.append(TranslatorConfigItem(
+            translator=tid,
+            api_key=api_key[:8] + "***" if len(api_key) > 8 else ("***" if api_key else ""),
+            api_base=api_base,
+            model=model,
+            configured=bool(api_key),
+        ))
+    return result
+
+
+@app.post("/api/config/translator", summary="保存翻译器配置")
+async def save_translator_config(payload: dict):
+    tid = (payload or {}).get("translator", "").strip()
+    if tid not in _TRANSLATOR_ENV_MAP:
+        raise HTTPException(status_code=422, detail=f"不支持的翻译器：{tid}")
+
+    key_env, base_env, model_env = _TRANSLATOR_ENV_MAP[tid]
+    env_path = settings.glossary_dir.parent / ".env"
+
+    # Read existing .env
+    env_lines: list[str] = []
+    if env_path.exists():
+        env_lines = env_path.read_text(encoding="utf-8").splitlines()
+
+    def _update_env(key: str, value: str):
+        nonlocal env_lines
+        if not key:
+            return
+        found = False
+        for i, line in enumerate(env_lines):
+            if line.startswith(f"{key}="):
+                env_lines[i] = f"{key}={value}"
+                found = True
+                break
+        if not found:
+            env_lines.append(f"{key}={value}")
+        os.environ[key] = value
+
+    api_key = payload.get("api_key", "").strip()
+    api_base = payload.get("api_base", "").strip()
+    model = payload.get("model", "").strip()
+
+    if api_key:
+        _update_env(key_env, api_key)
+    if api_base and base_env:
+        _update_env(base_env, api_base)
+    if model and model_env:
+        _update_env(model_env, model)
+
+    env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+    return {"status": "saved", "translator": tid}

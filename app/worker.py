@@ -126,9 +126,9 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
 
 
 def _execute_task_blocking(task: Task) -> None:
-    """Run the full task pipeline synchronously (called from a worker thread)."""
-    page = task.pages[0]
-
+    """Run the full task pipeline synchronously (called from a worker thread).
+    Processes all pages sequentially.
+    """
     def _persist(status: TaskStatus) -> None:
         task.status = status
         task_store[task.id] = task
@@ -136,34 +136,37 @@ def _execute_task_blocking(task: Task) -> None:
 
     try:
         _persist(TaskStatus.detecting)
-        image = Image.open(page.upload_path).convert("RGB")
-
-        # ── pipeline (run in a new event loop inside the thread) ──
-        async def _run() -> None:
-            return await run_pipeline(
-                image=image,
-                task_cfg=task.config,
-                on_progress=_make_inline_hook(task.id),
-            )
-
-        ctx = asyncio.run(_run())
-
         result_dir = settings.result_dir / task.id
         result_dir.mkdir(parents=True, exist_ok=True)
-        result_path = result_dir / "result.png"
-        inpainted_path = result_dir / "inpainted.png"
 
-        if ctx.get("img_inpainted") is not None:
-            Image.fromarray(ctx["img_inpainted"]).save(inpainted_path)
-        if ctx.get("result") is not None:
-            ctx["result"].save(result_path, format="PNG")
-        else:
-            image.save(result_path, format="PNG")
+        for page_idx, page in enumerate(task.pages):
+            image = Image.open(page.upload_path).convert("RGB")
 
-        page.result_path = str(result_path)
-        page.inpainted_path = str(inpainted_path) if inpainted_path.exists() else ""
-        page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
-        task.pages[0] = page
+            async def _run() -> None:
+                return await run_pipeline(
+                    image=image,
+                    task_cfg=task.config,
+                    on_progress=_make_inline_hook(task.id),
+                )
+
+            ctx = asyncio.run(_run())
+
+            result_path = result_dir / f"page_{page_idx:04d}_result.png"
+            inpainted_path = result_dir / f"page_{page_idx:04d}_inpainted.png"
+
+            if ctx.get("img_inpainted") is not None:
+                Image.fromarray(ctx["img_inpainted"]).save(inpainted_path)
+            if ctx.get("result") is not None:
+                ctx["result"].save(result_path, format="PNG")
+            else:
+                image.save(result_path, format="PNG")
+
+            page.result_path = str(result_path)
+            page.inpainted_path = str(inpainted_path) if inpainted_path.exists() else ""
+            page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
+            task.pages[page_idx] = page
+            _persist(task.status)
+
         _persist(TaskStatus.done)
     except Exception as exc:
         logger.exception("Task %s failed", task.id)

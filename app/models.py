@@ -86,6 +86,21 @@ class Glossary(GlossaryMeta):
 
 class CreateTaskResponse(BaseModel):
     task_id: str
+    page_count: int = 1
+
+
+class TranslatorConfigItem(BaseModel):
+    translator: str
+    api_key: str = ""
+    api_base: str = ""
+    model: str = ""
+    configured: bool = False
+
+
+class HealthResponse(BaseModel):
+    status: str = "ok"
+    gpu: bool = False
+    version: str = "0.1.0"
 
 
 class ProgressEvent(BaseModel):
