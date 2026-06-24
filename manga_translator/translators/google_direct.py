@@ -1,3 +1,4 @@
+import asyncio
 from typing import List
 from urllib.parse import quote
 
@@ -58,20 +59,33 @@ class GoogleDirectTranslator(CommonTranslator):
                 if not text or not text.strip():
                     results.append(text)
                     continue
-                try:
-                    url = (
-                        f"{_ENDPOINT}?client=gtx&sl=auto&tl={to_lang_code}"
-                        f"&dt=t&q={quote(text, safe='')}"
-                    )
-                    resp = await client.get(url)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    # data[0] is list of translation fragments
-                    translated = "".join(
-                        part[0] for part in data[0] if part and part[0]
-                    )
-                    results.append(translated if translated else text)
-                except Exception:
-                    self.logger.exception("Google Direct translate failed for %r", text)
-                    results.append(text)
-        return results
+
+                translated = text
+                for attempt in range(3):
+                    try:
+                        url = (
+                            f"{_ENDPOINT}?client=gtx&sl=auto&tl={to_lang_code}"
+                            f"&dt=t&q={quote(text, safe='')}"
+                        )
+                        resp = await client.get(url)
+                        if resp.status_code in (429, 500, 502, 503):
+                            wait = 1.0 * (attempt + 1)
+                            self.logger.warning(
+                                "Google rate-limited (%d), retry in %.1fs", resp.status_code, wait
+                            )
+                            await asyncio.sleep(wait)
+                            continue
+                        resp.raise_for_status()
+                        data = resp.json()
+                        translated = "".join(
+                            part[0] for part in data[0] if part and part[0]
+                        )
+                        if not translated:
+                            translated = text
+                        break
+                    except Exception:
+                        self.logger.exception("Google Direct attempt %d failed for %r", attempt + 1, text)
+                        await asyncio.sleep(0.5)
+
+                results.append(translated)
+                await asyncio.sleep(0.3)  # gentle rate limit between queries
