@@ -30,6 +30,7 @@ class TaskConfig(BaseModel):
     inpainter: str = "lama_large"
     render_translated_text: bool = True
     detection_size: int = 2048
+    context_size: int = 0
 
 
 class TextBlockResult(BaseModel):

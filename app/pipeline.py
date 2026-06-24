@@ -126,6 +126,12 @@ async def run_pipeline(
 ) -> Context:
     translator = await get_translator()
     config = _build_config(task_cfg)
+
+    # ── Layer 3: Cross-page context ──
+    # context_size > 0 means GPT translator will use previous pages' translations
+    # as context for the current page, improving consistency.
+    translator.context_size = task_cfg.context_size
+
     polish_fn = _make_polish_fn(task_cfg)
 
     # ── Glossary injection for GPT translators ──

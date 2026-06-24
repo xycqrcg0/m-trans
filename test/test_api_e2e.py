@@ -115,7 +115,7 @@ def test(options_only: bool = False, translator: str = "original",
     config = {
         "target_lang": target_lang, "translator": translator, "polish": False,
         "detector": "default", "ocr": "ocr48px", "inpainter": "lama_large",
-        "render_translated_text": True, "detection_size": 2048,
+        "render_translated_text": True, "detection_size": 2048, "context_size": 0,
     }
     try:
         task_id = api_upload(img, config)
