@@ -91,7 +91,7 @@ def _sse_collector(task_id: str, event_queue: Queue, stop_event: threading.Event
 
 def test(options_only: bool = False, translator: str = "original",
          image: Optional[str] = None, keep: bool = False,
-         target_lang: str = "CHS"):
+         target_lang: str = "CHS", erase_only: bool = False):
     # ── 1. options ──
     try:
         opts = api_options()
@@ -113,9 +113,9 @@ def test(options_only: bool = False, translator: str = "original",
     # ── 3. upload ──
     img = image or "./tmp/test-manga.jpg"
     config = {
-        "target_lang": target_lang, "translator": translator, "polish": False,
+        "target_lang": target_lang, "translator": ("none" if erase_only else translator), "polish": False,
         "detector": "default", "ocr": "ocr48px", "inpainter": "lama_large",
-        "render_translated_text": True, "detection_size": 2048, "context_size": 0,
+        "render_translated_text": (not erase_only), "detection_size": 2048, "context_size": 0,
     }
     try:
         task_id = api_upload(img, config)
@@ -190,6 +190,8 @@ if __name__ == "__main__":
     p.add_argument("--target-lang", default="CHS", help="Target language code (CHS/ENG/JPN/KOR...)")
     p.add_argument("--image")
     p.add_argument("--keep", action="store_true")
+    p.add_argument("--erase-only", action="store_true", help="Only erase text, no translation/rendering")
     args = p.parse_args()
     test(options_only=args.options_only, translator=args.translator,
-         image=args.image, keep=args.keep, target_lang=args.target_lang)
+         image=args.image, keep=args.keep, target_lang=args.target_lang,
+         erase_only=args.erase_only)
