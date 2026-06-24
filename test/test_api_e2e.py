@@ -90,7 +90,8 @@ def _sse_collector(task_id: str, event_queue: Queue, stop_event: threading.Event
 
 
 def test(options_only: bool = False, translator: str = "original",
-         image: Optional[str] = None, keep: bool = False):
+         image: Optional[str] = None, keep: bool = False,
+         target_lang: str = "CHS"):
     # ── 1. options ──
     try:
         opts = api_options()
@@ -112,7 +113,7 @@ def test(options_only: bool = False, translator: str = "original",
     # ── 3. upload ──
     img = image or "./tmp/test-manga.jpg"
     config = {
-        "target_lang": "CHS", "translator": translator, "polish": False,
+        "target_lang": target_lang, "translator": translator, "polish": False,
         "detector": "ctd", "ocr": "ocr32px", "inpainter": "lama_mpe",
         "render_translated_text": True, "detection_size": 1024,
     }
@@ -186,8 +187,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="API e2e test")
     p.add_argument("--options-only", action="store_true")
     p.add_argument("--translator", default="original")
+    p.add_argument("--target-lang", default="CHS", help="Target language code (CHS/ENG/JPN/KOR...)")
     p.add_argument("--image")
     p.add_argument("--keep", action="store_true")
     args = p.parse_args()
     test(options_only=args.options_only, translator=args.translator,
-         image=args.image, keep=args.keep)
+         image=args.image, keep=args.keep, target_lang=args.target_lang)
