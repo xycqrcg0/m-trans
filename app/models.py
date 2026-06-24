@@ -37,6 +37,7 @@ class TaskConfig(BaseModel):
     disable_font_border: bool = False
     mask_dilation_offset: int = 20
     mask_kernel_size: int = 3
+    inpainting_size: int = 2048
 
 
 class TextBlockResult(BaseModel):

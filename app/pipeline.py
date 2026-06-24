@@ -92,7 +92,7 @@ def _build_config(task_cfg: TaskConfig) -> Config:
         detector=DetectorConfig(detector=detector_key, detection_size=task_cfg.detection_size),
         ocr=OcrConfig(ocr=ocr_key),
         translator=TranslatorConfig(translator=translator_key, target_lang=task_cfg.target_lang),
-        inpainter=InpainterConfig(inpainter=inpainter_key),
+        inpainter=InpainterConfig(inpainter=inpainter_key, inpainting_size=task_cfg.inpainting_size),
         render=RenderConfig(
             renderer=renderer_key,
             font_size_offset=task_cfg.font_size_offset,
