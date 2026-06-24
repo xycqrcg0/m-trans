@@ -25,11 +25,11 @@ class TaskConfig(BaseModel):
     translator: str = "youdao"
     polish: bool = False
     glossary_id: Optional[str] = None
-    detector: str = "ctd"
-    ocr: str = "ocr32px"
-    inpainter: str = "lama_mpe"
+    detector: str = "default"
+    ocr: str = "ocr48px"
+    inpainter: str = "lama_large"
     render_translated_text: bool = True
-    detection_size: int = 1024
+    detection_size: int = 2048
 
 
 class TextBlockResult(BaseModel):

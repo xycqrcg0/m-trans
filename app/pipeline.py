@@ -36,7 +36,7 @@ async def get_translator() -> MangaTranslator:
             _translator = MangaTranslator(
                 {
                     "use_gpu": settings.use_gpu,
-                    "kernel_size": 7,
+                    "kernel_size": 3,
                     "ignore_errors": True,
                 }
             )
@@ -53,8 +53,8 @@ def _pick_enum(enum_cls, value: str, default):
 def _build_config(task_cfg: TaskConfig) -> Config:
     translator_key = _pick_enum(Translator, task_cfg.translator, Translator.youdao)
     detector_key = _pick_enum(Detector, task_cfg.detector, Detector.ctd)
-    ocr_key = _pick_enum(Ocr, task_cfg.ocr, Ocr.ocr32px)
-    inpainter_key = _pick_enum(Inpainter, task_cfg.inpainter, Inpainter.lama_mpe)
+    ocr_key = _pick_enum(Ocr, task_cfg.ocr, Ocr.ocr48px)
+    inpainter_key = _pick_enum(Inpainter, task_cfg.inpainter, Inpainter.lama_large)
     renderer_key = Renderer.default if task_cfg.render_translated_text else Renderer.none
 
     return Config(

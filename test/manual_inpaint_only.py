@@ -43,7 +43,7 @@ async def run_inpaint_only(
 
     translator = MangaTranslator(
         {
-            "kernel_size": 7,
+            "kernel_size": 3,
         }
     )
 
@@ -51,12 +51,9 @@ async def run_inpaint_only(
         translator=TranslatorConfig(translator=Translator.none, target_lang="CHS"),
         detector=DetectorConfig(detector=detector_key, detection_size=detection_size),
         ocr=OcrConfig(ocr=ocr_key),
-        inpainter=InpainterConfig(inpainter=Inpainter.lama_mpe),
+        inpainter=InpainterConfig(inpainter=Inpainter.lama_large),
         renderer=RenderConfig(renderer=Renderer.none),
     )
-    # Make the erase region slightly larger to remove more text residue.
-    config.mask_dilation_offset = 28
-
     image = Image.open(input_path)
     ctx = await translator.translate(image, config)
 
