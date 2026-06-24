@@ -129,13 +129,12 @@ async def task_progress(task_id: str):
         raise HTTPException(status_code=404, detail="进度队列不存在")
 
     async def _event_stream():
+        loop = asyncio.get_running_loop()
         while True:
-            event = await q.get()
+            event = await loop.run_in_executor(None, q.get)
             yield f"data: {event.model_dump_json()}\n\n"
             if event.done:
                 break
-
-    return StreamingResponse(_event_stream(), media_type="text/event-stream")
 
 
 @app.get("/api/tasks/{task_id}/result", summary="下载结果图 PNG")

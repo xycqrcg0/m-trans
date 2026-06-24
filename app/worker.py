@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 from pathlib import Path
+from queue import Queue
 from typing import Optional
 
 import numpy as np
@@ -14,9 +16,11 @@ from config.settings import settings
 
 logger = logging.getLogger("worker")
 
+_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
 task_store: dict[str, Task] = {}
-progress_queues: dict[str, asyncio.Queue] = {}
-_task_queue: asyncio.Queue[Task] = asyncio.Queue()
+progress_queues: dict[str, Queue] = {}
+_task_queue: Queue[Task] = Queue()
 _runner_task: Optional[asyncio.Task] = None
 
 _PROGRESS_MAP: dict[str, tuple[int, str, Optional[TaskStatus]]] = {
@@ -70,7 +74,9 @@ def delete_task_files(task: Task) -> None:
             pass
 
 
-def make_progress_hook(task_id: str):
+async def _make_inline_hook(task_id: str):
+    """Return an async progress hook that pushes events to a threading.Queue (thread-safe)."""
+
     async def hook(state: str, finished: bool) -> None:
         if state.startswith("rendering_folder:") or state.startswith("final_ready:"):
             return
@@ -84,7 +90,7 @@ def make_progress_hook(task_id: str):
             save_task(task)
 
         q = progress_queues.get(task_id)
-        if q:
+        if q is not None:
             q.put_nowait(
                 ProgressEvent(
                     state=status.value if status else state,
@@ -119,7 +125,8 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
     return blocks
 
 
-async def _execute_task(task: Task) -> None:
+def _execute_task_blocking(task: Task) -> None:
+    """Run the full task pipeline synchronously (called from a worker thread)."""
     page = task.pages[0]
 
     def _persist(status: TaskStatus) -> None:
@@ -130,7 +137,16 @@ async def _execute_task(task: Task) -> None:
     try:
         _persist(TaskStatus.detecting)
         image = Image.open(page.upload_path).convert("RGB")
-        ctx = await run_pipeline(image=image, task_cfg=task.config, on_progress=make_progress_hook(task.id))
+
+        # ── pipeline (run in a new event loop inside the thread) ──
+        async def _run() -> None:
+            return await run_pipeline(
+                image=image,
+                task_cfg=task.config,
+                on_progress=await _make_inline_hook(task.id),
+            )
+
+        ctx = asyncio.run(_run())
 
         result_dir = settings.result_dir / task.id
         result_dir.mkdir(parents=True, exist_ok=True)
@@ -155,7 +171,7 @@ async def _execute_task(task: Task) -> None:
         _persist(TaskStatus.failed)
     finally:
         q = progress_queues.get(task.id)
-        if q:
+        if q is not None:
             q.put_nowait(
                 ProgressEvent(
                     state=task.status.value,
@@ -167,11 +183,15 @@ async def _execute_task(task: Task) -> None:
 
 
 async def task_runner() -> None:
-    logger.info("Task runner started")
+    """Consume tasks from the thread-safe queue and run them on a background thread."""
+    loop = asyncio.get_running_loop()
+    logger.info("Task runner started (thread-pool mode)")
+
     while True:
-        task = await _task_queue.get()
+        task = await asyncio.to_thread(_task_queue.get)
         try:
-            await _execute_task(task)
+            progress_queues[task.id] = Queue()
+            await loop.run_in_executor(_EXECUTOR, _execute_task_blocking, task)
         except Exception:
             logger.exception("Unhandled error in task runner")
         finally:
@@ -180,9 +200,8 @@ async def task_runner() -> None:
 
 async def enqueue_task(task: Task) -> None:
     task_store[task.id] = task
-    progress_queues[task.id] = asyncio.Queue()
     save_task(task)
-    await _task_queue.put(task)
+    _task_queue.put_nowait(task)
 
 
 async def startup() -> None:
