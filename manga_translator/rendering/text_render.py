@@ -625,15 +625,18 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     for i, word in enumerate(words):
         word_widths.append(get_string_width(font_size, word))
 
-    # Try to increase width usage if a height overflow is unavoidable
+    # If text doesn't fit in (max_width, max_height), shrink font_size instead of expanding max_width.
+    # Expanding max_width causes text to overflow the bubble.
     while True:
         max_lines = max_height // font_size + 1
         expected_size = sum(word_widths) + max((len(word_widths) - 1) * whitespace_offset_x - (max_lines - 1) * hyphen_offset_x, 0)
         max_size = max_width * max_lines
-        if max_size < expected_size:
-            multiplier = np.sqrt(expected_size / max_size)
-            max_width *= max(multiplier, 1.05)
-            max_height *= multiplier
+        if max_size < expected_size and font_size > 8:
+            # Shrink font to fit — never expand max_width beyond the bubble
+            font_size = max(int(font_size * 0.9), 8)
+            word_widths = [get_string_width(font_size, w) for w in words]
+            whitespace_offset_x = get_char_offset_x(font_size, ' ')
+            hyphen_offset_x = get_char_offset_x(font_size, '-')
         else:
             break
 
@@ -650,18 +653,6 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
         if len(new_syls) == 0:
             if len(word) <= 3:
                 new_syls = [word]
-            elif re.search(r'[^\x00-\x7F]', word):
-                # CJK text: split on punctuation first, then by character
-                # This prevents breaking mid-phrase and prefers breaking at punctuation
-                parts = re.split(r'([，。！？、…——\-—~～（）\(\)\[\]【】「」『』""''<>《》])', word)
-                new_syls = []
-                for p in parts:
-                    if not p:
-                        continue
-                    if len(p) <= 2:
-                        new_syls.append(p)
-                    else:
-                        new_syls.extend(list(p))
             else:
                 new_syls = list(word)
 
