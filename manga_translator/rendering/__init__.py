@@ -167,39 +167,26 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
             char_count_trans = count_text_length(region.translation.strip())     
             length_ratio = 1.0
 
-            if char_count_orig > 0 and char_count_trans > char_count_orig:  
-                increase_percentage = (char_count_trans - char_count_orig) / char_count_orig
-                font_increase_ratio = 1 + (increase_percentage * 0.3)
-                font_increase_ratio = min(1.5, max(1.0, font_increase_ratio))
-                # logger.debug(f"Translation is {increase_percentage:.2%} longer, font increase ratio: {font_increase_ratio:.2f}")
-                target_font_size = int(target_font_size * font_increase_ratio)
-                # logger.debug(f"Adjusted target font size: {target_font_size}")
-                # Need greater bounding box scaling to accommodate larger font size and longer text
-                target_scale = max(1, min(1 + increase_percentage * 0.3, 2))  # Possibly max(1, min(1 + (font_increase_ratio-1), 2))
-                # logger.debug(f"Translation is longer than original and font increased, need larger bounding box scaling. Target scale factor: {target_scale:.2f}")
-            # Short text box expansion is quite aggressive, in many cases short text boxes don't need expansion
-            # elif char_count_orig > 0 and char_count_trans < char_count_orig:
-            #     # Translation is shorter, increase font proportionally
-            #     decrease_percentage = (char_count_orig - char_count_trans) / char_count_orig
-            #     # Font increase ratio equals text reduction ratio
-            #     font_increase_ratio = 1 + decrease_percentage
-            #     # Limit font increase ratio to reasonable range, e.g., between 1.0 and 1.5
-            #     font_increase_ratio = min(1.5, max(1.0, font_increase_ratio))
-            #     logger.debug(f"Translation is {decrease_percentage:.2%} shorter than original, font increase ratio: {font_increase_ratio:.2f}")
-            #     # Update target font size
-            #     target_font_size = int(target_font_size * font_increase_ratio)
-            #     logger.debug(f"Adjusted target font size: {target_font_size}")
-            #     target_scale = 1.0  # No additional bounding box scaling needed
-            #     logger.debug(f"Translation is shorter than original, no bounding box scaling applied, only font increase. Target scale factor: {target_scale:.2f}")            
-            else:  
-                target_scale = 1              
-                # logger.debug(f"No length ratio scaling applied. Target scale factor: {target_scale:.2f}")   
+            if char_count_orig > 0:
+                length_ratio = char_count_trans / char_count_orig
+                if length_ratio > 1.0:
+                    # Translation is longer — shrink font to fit, don't enlarge
+                    shrink = min(1.0 / length_ratio, 1.0)
+                    target_font_size = max(int(target_font_size * shrink), font_size_minimum)
+                    target_scale = 1.0
+                else:
+                    target_scale = 1.0
+            else:
+                target_scale = 1
 
             # Calculate final scaling factor
-            font_size_scale = (((target_font_size - original_region_font_size) / original_region_font_size) * 0.4 + 1) if original_region_font_size > 0 else 1.0  
-            # logger.debug(f"Font size ratio: ({target_font_size} / {original_region_font_size})")  
-            final_scale = max(font_size_scale, target_scale)
-            final_scale = max(1, min(final_scale, 1.1))  
+            # When font is shrunk to fit, no bounding box expansion needed
+            if target_font_size < original_region_font_size:
+                final_scale = 1.0
+            else:
+                font_size_scale = (((target_font_size - original_region_font_size) / original_region_font_size) * 0.4 + 1) if original_region_font_size > 0 else 1.0
+                final_scale = max(font_size_scale, target_scale)
+                final_scale = max(1, min(final_scale, 1.1))
             
             # logger.debug(f"Final scaling factor: {final_scale:.2f}")  
 
