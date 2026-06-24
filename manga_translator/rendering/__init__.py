@@ -94,7 +94,7 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
             used_rows = len(region.texts)
             # logger.debug(f"Horizontal text - used rows: {used_rows}")
             
-            line_text_list, _ = text_render.calc_horizontal(
+            line_text_list, _, _ = text_render.calc_horizontal(
                 region.font_size,
                 region.translation,
                 max_width=region.unrotated_size[0],

@@ -609,10 +609,9 @@ def get_char_offset_x(font_size: int, cdpt: str):
 def get_string_width(font_size: int, text: str):
     return sum([get_char_offset_x(font_size, c) for c in text])
 
-def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, language: str = 'en_US', hyphenate: bool = True) -> Tuple[List[str], List[int]]:
+def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, language: str = 'en_US', hyphenate: bool = True) -> Tuple[List[str], List[int], int]:
     """
-    Splits up a string of text into lines. Returns list of lines and their widths.
-    Will go over max_height if too much text is present.
+    Splits up a string of text into lines. Returns list of lines, their widths, and the (possibly shrunk) font_size.
     """
     max_width = max(max_width, 2 * font_size)
 
@@ -878,7 +877,7 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
         line_width_list[i] = get_string_width(font_size, line_text)
         line_text_list.append(line_text)
 
-    return line_text_list, line_width_list
+    return line_text_list, line_width_list, font_size
 
 
 def put_char_horizontal(font_size: int, cdpt: str, pen_l: Tuple[int, int], canvas_text: np.ndarray, canvas_border: np.ndarray, border_size: int):
@@ -1111,9 +1110,10 @@ def put_text_horizontal(font_size: int, text: str, width: int, height: int, alig
 
     # calc
     # print(width)
-    line_text_list, line_width_list = calc_horizontal(font_size, text, width, height, lang, hyphenate)
-    # print(line_text_list, line_width_list)
-
+    line_text_list, line_width_list, font_size = calc_horizontal(font_size, text, width, height, lang, hyphenate)
+    # Recalculate layout params with possibly shrunk font_size
+    bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
+    spacing_y = int(font_size * (line_spacing or 0.01))
     # make large canvas
     canvas_w = max(line_width_list) + (font_size + bg_size) * 2
     canvas_h = font_size * len(line_width_list) + spacing_y * (len(line_width_list) - 1) + (font_size + bg_size) * 2
