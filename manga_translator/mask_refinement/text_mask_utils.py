@@ -140,8 +140,12 @@ def _color_based_refine(rgbimg: np.ndarray, rawmask: np.ndarray) -> np.ndarray:
     thresh = max(30, int(np.percentile(color_dist[roi_mask > 0], 25)))
     text_pixels = (color_dist > thresh).astype(np.uint8) * 255
 
-    # Only add pixels near existing mask (within dilation radius)
-    near_mask = cv2.dilate(roi_mask, np.ones((7, 7), np.uint8))
+    # Only add pixels near existing mask — adaptive radius based on mask size
+    # Small text needs wider search; large text already has good coverage
+    mask_h = ys.max() - ys.min()
+    mask_w = xs.max() - xs.min()
+    search_radius = max(7, int(0.3 * min(mask_h, mask_w)))
+    near_mask = cv2.dilate(roi_mask, np.ones((search_radius, search_radius), np.uint8))
     new_mask = cv2.bitwise_or(roi_mask, cv2.bitwise_and(text_pixels, text_pixels, mask=near_mask))
 
     # Smooth the result
