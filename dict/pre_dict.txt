@@ -1,47 +1,16 @@
-# 格式：源词[至少一个Tab/空格]目标词[至少一个Tab/空格][#注释 或 //注释]
-# Format: source term[at least one Tab/Space]target term[at least one Tab/Space][#comment or //comment]
-
-# Anime Character Type
-傲娇	Tsundere	# 表面冷漠内心温柔的角色  
-元气少女	Genki Girl	# 活力充沛、乐观开朗的女孩角色  
-天然呆	Dandere	# 安静内向但可爱的角色  
-
-# Anime Term  
-萌化	Moe-fication	# 使事物更可爱  
-燃	Burning/Hype	# 热血沸腾的场景  
-中二病	Chuunibyou	# 中二症候群  
-
-# Character Names and Gender
-野比大雄	Nobita Nobi	# 男  
-源静香	Shizuka Minamoto	# 女  
-灰原哀	Ai Haibara	# 女  
-工藤新一	Shinichi Kudo	# 男  
-路飞	Luffy	# male  
-娜美	Nami	# female  
-鸣人	Naruto	# male    
-小樱	Sakura	# female    
-
-# Regular Expression
-第([0-9]+)话	Episode $1	# 匹配集数  
-(男|女)主角	(Male|Female) Protagonist	# 主角类型  
-(轻小说|漫画|动画)	(Light Novel|Manga|Anime)	# 媒体类型  
-
-// ACG  
-同人志	Doujinshi	// 粉丝创作的作品  
-御宅族	Otaku	// 动漫爱好者  
-声优	Voice Actor	// 配音演员  
+# 格式：源词[至少一个Tab]目标词[至少一个Tab][#注释 或 //注释]
+# Format: source term[at least one Tab]target term[at least one Tab][#comment or //comment]
+# 注意：源词会被当作正则表达式编译，特殊字符需转义
+# 注意：line.split() 按空格分割，目标词不能含空格
 
 # ── OCR 常见误识别修正 ──
 # 长音符「ー」被 OCR 误识别
-一(?=[ぁ-んァ-ヶ])	ー	# 长音符误识别为汉字「一」
--(?=[ぁ-んァ-ヶ])	ー	# 长音符误识别为连字符
+\一(?=[ぁ-んァ-ヶ])	ー	# 长音符误识别为汉字「一」
+\-(?=[ぁ-んァ-ヶ])	ー	# 长音符误识别为连字符
 # 句号误识别
 \.\s*$	。	# 英文句号转日文句号
-# 感叹号问号全角化
-(?<!\w)!	！	# 感叹号全角化
-(?<!\w)\?	？	# 问号全角化
 # 波浪号统一
-~	〜	# ASCII 波浪号转全角
+~	〜	# ASCII波浪号转全角
 
 # ── OCR 混淆字符 ──
 l(?=[ぁ-んァ-ヶ])	し	# 小写L误识别为「し」
@@ -49,4 +18,3 @@ l(?=[ぁ-んァ-ヶ])	し	# 小写L误识别为「し」
 # ── 空白清理 ──
 ^\s+		# 去除行首空白
 \s+$		# 去除行尾空白
-　{2,}	　	# 多个全角空格压缩为一个
