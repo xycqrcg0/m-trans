@@ -220,31 +220,99 @@ def apply_glossary(text: str, mapping: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 _DEFAULT_ENTRIES: list[GlossaryEntry] = [
-    GlossaryEntry("勇者", "勇者", "default hero title — keep as-is or translate contextually"),
-    GlossaryEntry("魔王", "魔王", "demon king / demon lord"),
+    # ── 作品标题 ──
     GlossaryEntry("かめはめ波", "龟派气功", "Dragon Ball signature move"),
-    GlossaryEntry("ちから", "力量 / 力", "power"),
+    GlossaryEntry("ワンピース", "海贼王", "One Piece"),
+    GlossaryEntry("ナルト", "火影忍者", "Naruto"),
+
+    # ── 角色类型 / 称谓 ──
+    GlossaryEntry("勇者", "勇者", "default hero title — keep as-is"),
+    GlossaryEntry("魔王", "魔王", "demon king / demon lord"),
+    GlossaryEntry("主人公", "主角", "main character / protagonist"),
+    GlossaryEntry("仲間", "伙伴", "companion / friend"),
+    GlossaryEntry("せんぱい", "前辈", "senior"),
+    GlossaryEntry("こうはい", "后辈", "junior"),
+    GlossaryEntry("先輩", "前辈", "senior (kanji form)"),
+    GlossaryEntry("後輩", "后辈", "junior (kanji form)"),
+    GlossaryEntry("先生", "老师", "teacher / master"),
+    GlossaryEntry("センセイ", "老师 / 先生", "teacher / master (kana form)"),
+    GlossaryEntry("お嬢様", "大小姐", "rich young lady"),
+    GlossaryEntry("おにいちゃん", "哥哥", "older brother (affectionate)"),
+    GlossaryEntry("おねえちゃん", "姐姐", "older sister (affectionate)"),
+    GlossaryEntry("幼馴染", "青梅竹马", "childhood friend"),
+
+    # ── 自称 / 第二人称 ──
+    GlossaryEntry("僕", "我", "male self-referral (gentle)"),
+    GlossaryEntry("俺", "我", "male self-referral (rough)"),
+    GlossaryEntry("私", "我", "general self-referral"),
+    GlossaryEntry("にんげん", "人类", "human"),
+
+    # ── 感叹词 / 语气词 ──
     GlossaryEntry("たすけて", "救命", "help!"),
     GlossaryEntry("まって", "等等", "wait"),
     GlossaryEntry("だいじょうぶ", "没关系", "it's fine / don't worry"),
     GlossaryEntry("すごい", "好厉害", "amazing"),
-    GlossaryEntry("ばか", "笨蛋", "idiot/ fool"),
+    GlossaryEntry("ばか", "笨蛋", "idiot / fool"),
     GlossaryEntry("やった", "做到了", "I did it!"),
-    GlossaryEntry("にんげん", "人类", "human"),
-    GlossaryEntry("せんぱい", "前辈", "senior"),
-    GlossaryEntry("こうはい", "后辈", "junior"),
-    GlossaryEntry("おにいちゃん", "哥哥", "older brother (affectionate)"),
-    GlossaryEntry("おねえちゃん", "姐姐", "older sister (affectionate)"),
-    GlossaryEntry("センセイ", "老师 / 先生", "teacher / master"),
-    GlossaryEntry("ワンピース", "海贼王", "One Piece"),
-    GlossaryEntry("ナルト", "火影忍者", "Naruto"),
-    GlossaryEntry("主人公", "主角", "main character / protagonist"),
-    GlossaryEntry("仲間", "伙伴", "companion / friend"),
+    GlossaryEntry("えっと", "那个…", "thinking pause"),
+    GlossaryEntry("やっぱり", "果然", "as expected"),
+    GlossaryEntry("なるほど", "原来如此", "I see"),
+    GlossaryEntry("しまった", "糟了", "mistake / oh no"),
+    GlossaryEntry("ちから", "力量 / 力", "power"),
+
+    # ── 战斗 / 冒险术语 ──
+    GlossaryEntry("必殺技", "必杀技", "ultimate move"),
+    GlossaryEntry("結界", "结界", "barrier"),
+    GlossaryEntry("封印", "封印", "seal"),
+    GlossaryEntry("覚醒", "觉醒", "awakening"),
+    GlossaryEntry("暴走", "暴走", "rampage / out of control"),
+
+    # ── 校园 / 日常 ──
+    GlossaryEntry("宿題", "作业", "homework"),
+    GlossaryEntry("試験", "考试", "exam"),
+    GlossaryEntry("卒業", "毕业", "graduation"),
+    GlossaryEntry("文化祭", "文化祭", "school festival"),
+    GlossaryEntry("体育祭", "运动会", "sports festival"),
+
+    # ── 情感 / 心理 ──
+    GlossaryEntry("恥ずかしい", "好尴尬", "embarrassed"),
+    GlossaryEntry("寂しい", "好寂寞", "lonely"),
+    GlossaryEntry("悔しい", "不甘心", "frustrated"),
+    GlossaryEntry("怖い", "好可怕", "scary"),
+    GlossaryEntry("嬉しい", "好开心", "happy"),
+
+    # ── 拟声词 ──
+    GlossaryEntry("ドキドキ", "扑通扑通", "heartbeat"),
+    GlossaryEntry("ワクワク", "兴奋期待", "excitement"),
+    GlossaryEntry("ガシャン", "哐当", "metal crash"),
+    GlossaryEntry("ドドド", "咚咚咚", "running / impact"),
+
+    # ── 角色名（示例：路人女主） ──
+    GlossaryEntry("安芸倫也", "安艺伦也", "character name, male"),
+    GlossaryEntry("倫也", "伦也", "character name, male"),
+    GlossaryEntry("安芸", "安艺", "surname"),
+    GlossaryEntry("加藤恵", "加藤惠", "character name, female"),
+    GlossaryEntry("恵", "惠", "character name, female"),
+    GlossaryEntry("加藤", "加藤", "surname"),
+    GlossaryEntry("澤村・スペンサー・英梨々", "泽村・斯宾塞・英梨梨", "character name, female"),
+    GlossaryEntry("英梨々", "英梨梨", "character name, female"),
+    GlossaryEntry("澤村", "泽村", "surname"),
+
+    # ── 常见角色名（日文旧字体→简体） ──
+    GlossaryEntry("東條", "东条", "surname"),
+    GlossaryEntry("希咲", "希咲", "name, female"),
+    GlossaryEntry("理華", "理华", "name, female"),
+    GlossaryEntry("美咲", "美咲", "name, female"),
+    GlossaryEntry("楓", "枫", "name, female"),
+    GlossaryEntry("澪", "澪", "name, female"),
+    GlossaryEntry("凛", "凛", "name, neutral"),
+    GlossaryEntry("茜", "茜", "name, female"),
+    GlossaryEntry("蓮", "莲", "name, male/neutral"),
 ]
 
 
 def create_default_glossary() -> Glossary:
-    """Create (or reload) the built-in glossary with ~20 common terms."""
+    """Create (or reload) the built-in glossary with common anime/manga terms."""
     g = Glossary(
         id="default",
         name="二次元常用术语 (built-in)",

@@ -47,8 +47,9 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     set_glossary_dir(settings.glossary_dir)
-    if load_glossary("default") is None:
-        create_default_glossary()
+    # Always recreate the built-in default so new entries ship on upgrade.
+    # User-created glossaries are never touched.
+    create_default_glossary()
     await worker.startup()
     yield
 

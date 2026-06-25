@@ -154,7 +154,9 @@ async def run_pipeline(
                     os.environ["OPENAI_GLOSSARY_PATH"] = gpt_path
                     os.environ["SAKURA_DICT_PATH"] = gpt_path
             else:
-                os.environ["OPENAI_GLOSSARY_PATH"] = str(_DICT_DIR / "mit_glossary.txt")
+                mit_path = str(_DICT_DIR / "mit_glossary.txt")
+                os.environ["OPENAI_GLOSSARY_PATH"] = mit_path
+                os.environ["SAKURA_DICT_PATH"] = mit_path
 
             if on_progress:
                 translator.add_progress_hook(on_progress)

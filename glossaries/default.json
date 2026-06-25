@@ -1,12 +1,27 @@
 {
   "id": "default",
   "name": "二次元常用术语 (built-in)",
-  "created_at": "2026-06-23T13:16:19.500989+00:00",
+  "created_at": "2026-06-25T08:05:34.412937+00:00",
   "entries": [
+    {
+      "source": "かめはめ波",
+      "target": "龟派气功",
+      "note": "Dragon Ball signature move"
+    },
+    {
+      "source": "ワンピース",
+      "target": "海贼王",
+      "note": "One Piece"
+    },
+    {
+      "source": "ナルト",
+      "target": "火影忍者",
+      "note": "Naruto"
+    },
     {
       "source": "勇者",
       "target": "勇者",
-      "note": "default hero title — keep as-is or translate contextually"
+      "note": "default hero title — keep as-is"
     },
     {
       "source": "魔王",
@@ -14,14 +29,84 @@
       "note": "demon king / demon lord"
     },
     {
-      "source": "かめはめ波",
-      "target": "龟派气功",
-      "note": "Dragon Ball signature move"
+      "source": "主人公",
+      "target": "主角",
+      "note": "main character / protagonist"
     },
     {
-      "source": "ちから",
-      "target": "力量 / 力",
-      "note": "power"
+      "source": "仲間",
+      "target": "伙伴",
+      "note": "companion / friend"
+    },
+    {
+      "source": "せんぱい",
+      "target": "前辈",
+      "note": "senior"
+    },
+    {
+      "source": "こうはい",
+      "target": "后辈",
+      "note": "junior"
+    },
+    {
+      "source": "先輩",
+      "target": "前辈",
+      "note": "senior (kanji form)"
+    },
+    {
+      "source": "後輩",
+      "target": "后辈",
+      "note": "junior (kanji form)"
+    },
+    {
+      "source": "先生",
+      "target": "老师",
+      "note": "teacher / master"
+    },
+    {
+      "source": "センセイ",
+      "target": "老师 / 先生",
+      "note": "teacher / master (kana form)"
+    },
+    {
+      "source": "お嬢様",
+      "target": "大小姐",
+      "note": "rich young lady"
+    },
+    {
+      "source": "おにいちゃん",
+      "target": "哥哥",
+      "note": "older brother (affectionate)"
+    },
+    {
+      "source": "おねえちゃん",
+      "target": "姐姐",
+      "note": "older sister (affectionate)"
+    },
+    {
+      "source": "幼馴染",
+      "target": "青梅竹马",
+      "note": "childhood friend"
+    },
+    {
+      "source": "僕",
+      "target": "我",
+      "note": "male self-referral (gentle)"
+    },
+    {
+      "source": "俺",
+      "target": "我",
+      "note": "male self-referral (rough)"
+    },
+    {
+      "source": "私",
+      "target": "我",
+      "note": "general self-referral"
+    },
+    {
+      "source": "にんげん",
+      "target": "人类",
+      "note": "human"
     },
     {
       "source": "たすけて",
@@ -46,7 +131,7 @@
     {
       "source": "ばか",
       "target": "笨蛋",
-      "note": "idiot/ fool"
+      "note": "idiot / fool"
     },
     {
       "source": "やった",
@@ -54,54 +139,214 @@
       "note": "I did it!"
     },
     {
-      "source": "にんげん",
-      "target": "人类",
-      "note": "human"
+      "source": "えっと",
+      "target": "那个…",
+      "note": "thinking pause"
     },
     {
-      "source": "せんぱい",
-      "target": "前辈",
-      "note": "senior"
+      "source": "やっぱり",
+      "target": "果然",
+      "note": "as expected"
     },
     {
-      "source": "こうはい",
-      "target": "后辈",
-      "note": "junior"
+      "source": "なるほど",
+      "target": "原来如此",
+      "note": "I see"
     },
     {
-      "source": "おにいちゃん",
-      "target": "哥哥",
-      "note": "older brother (affectionate)"
+      "source": "しまった",
+      "target": "糟了",
+      "note": "mistake / oh no"
     },
     {
-      "source": "おねえちゃん",
-      "target": "姐姐",
-      "note": "older sister (affectionate)"
+      "source": "ちから",
+      "target": "力量 / 力",
+      "note": "power"
     },
     {
-      "source": "センセイ",
-      "target": "老师 / 先生",
-      "note": "teacher / master"
+      "source": "必殺技",
+      "target": "必杀技",
+      "note": "ultimate move"
     },
     {
-      "source": "ワンピース",
-      "target": "海贼王",
-      "note": "One Piece"
+      "source": "結界",
+      "target": "结界",
+      "note": "barrier"
     },
     {
-      "source": "ナルト",
-      "target": "火影忍者",
-      "note": "Naruto"
+      "source": "封印",
+      "target": "封印",
+      "note": "seal"
     },
     {
-      "source": "主人公",
-      "target": "主角",
-      "note": "main character / protagonist"
+      "source": "覚醒",
+      "target": "觉醒",
+      "note": "awakening"
     },
     {
-      "source": "仲間",
-      "target": "伙伴",
-      "note": "companion / friend"
+      "source": "暴走",
+      "target": "暴走",
+      "note": "rampage / out of control"
+    },
+    {
+      "source": "宿題",
+      "target": "作业",
+      "note": "homework"
+    },
+    {
+      "source": "試験",
+      "target": "考试",
+      "note": "exam"
+    },
+    {
+      "source": "卒業",
+      "target": "毕业",
+      "note": "graduation"
+    },
+    {
+      "source": "文化祭",
+      "target": "文化祭",
+      "note": "school festival"
+    },
+    {
+      "source": "体育祭",
+      "target": "运动会",
+      "note": "sports festival"
+    },
+    {
+      "source": "恥ずかしい",
+      "target": "好尴尬",
+      "note": "embarrassed"
+    },
+    {
+      "source": "寂しい",
+      "target": "好寂寞",
+      "note": "lonely"
+    },
+    {
+      "source": "悔しい",
+      "target": "不甘心",
+      "note": "frustrated"
+    },
+    {
+      "source": "怖い",
+      "target": "好可怕",
+      "note": "scary"
+    },
+    {
+      "source": "嬉しい",
+      "target": "好开心",
+      "note": "happy"
+    },
+    {
+      "source": "ドキドキ",
+      "target": "扑通扑通",
+      "note": "heartbeat"
+    },
+    {
+      "source": "ワクワク",
+      "target": "兴奋期待",
+      "note": "excitement"
+    },
+    {
+      "source": "ガシャン",
+      "target": "哐当",
+      "note": "metal crash"
+    },
+    {
+      "source": "ドドド",
+      "target": "咚咚咚",
+      "note": "running / impact"
+    },
+    {
+      "source": "安芸倫也",
+      "target": "安艺伦也",
+      "note": "character name, male"
+    },
+    {
+      "source": "倫也",
+      "target": "伦也",
+      "note": "character name, male"
+    },
+    {
+      "source": "安芸",
+      "target": "安艺",
+      "note": "surname"
+    },
+    {
+      "source": "加藤恵",
+      "target": "加藤惠",
+      "note": "character name, female"
+    },
+    {
+      "source": "恵",
+      "target": "惠",
+      "note": "character name, female"
+    },
+    {
+      "source": "加藤",
+      "target": "加藤",
+      "note": "surname"
+    },
+    {
+      "source": "澤村・スペンサー・英梨々",
+      "target": "泽村・斯宾塞・英梨梨",
+      "note": "character name, female"
+    },
+    {
+      "source": "英梨々",
+      "target": "英梨梨",
+      "note": "character name, female"
+    },
+    {
+      "source": "澤村",
+      "target": "泽村",
+      "note": "surname"
+    },
+    {
+      "source": "東條",
+      "target": "东条",
+      "note": "surname"
+    },
+    {
+      "source": "希咲",
+      "target": "希咲",
+      "note": "name, female"
+    },
+    {
+      "source": "理華",
+      "target": "理华",
+      "note": "name, female"
+    },
+    {
+      "source": "美咲",
+      "target": "美咲",
+      "note": "name, female"
+    },
+    {
+      "source": "楓",
+      "target": "枫",
+      "note": "name, female"
+    },
+    {
+      "source": "澪",
+      "target": "澪",
+      "note": "name, female"
+    },
+    {
+      "source": "凛",
+      "target": "凛",
+      "note": "name, neutral"
+    },
+    {
+      "source": "茜",
+      "target": "茜",
+      "note": "name, female"
+    },
+    {
+      "source": "蓮",
+      "target": "莲",
+      "note": "name, male/neutral"
     }
   ]
 }
