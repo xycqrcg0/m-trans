@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
-import { getTask, getResultUrl, getInpaintedUrl, type Task } from '@/lib/api'
+import { getTask, getResultUrl, getInpaintedUrl, getDownloadAllUrl, type Task } from '@/lib/api'
 import { ResultViewer } from '@/components/ResultViewer'
 import { TranslationEditor } from '@/components/TranslationEditor'
 
@@ -97,13 +97,23 @@ export default function TaskDetail() {
         <Link to="/tasks" className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />返回
         </Link>
-        <a
-          href={resultUrl}
-          download={`translated_${task.id}_p${pageIdx + 1}.png`}
-          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
-        >
-          <Download className="h-4 w-4" />下载译图
-        </a>
+        <div className="flex items-center gap-2">
+          {totalPages > 1 && (
+            <a
+              href={getDownloadAllUrl(task.id)}
+              className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" />下载全部 (ZIP)
+            </a>
+          )}
+          <a
+            href={resultUrl}
+            download={`translated_${task.id}_p${pageIdx + 1}.png`}
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+          >
+            <Download className="h-4 w-4" />下载本页
+          </a>
+        </div>
       </div>
 
       <div>

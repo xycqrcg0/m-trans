@@ -193,6 +193,34 @@ async def get_inpainted(task_id: str, page: int = 1):
     return FileResponse(path=str(inpainted_path), media_type="image/png", filename=f"inpainted_{task_id}_p{page}.png")
 
 
+@app.get("/api/tasks/{task_id}/download", summary="打包下载全部结果图 ZIP")
+async def download_all_results(task_id: str):
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.status != TaskStatus.done:
+        raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
+
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        for i, pg in enumerate(task.pages):
+            if pg.result_path and Path(pg.result_path).exists():
+                ext = Path(pg.result_path).suffix or ".png"
+                # Use original filename if available, otherwise page index
+                name = pg.filename if pg.filename else f"page_{i+1:04d}"
+                # Ensure unique and has extension
+                if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+                    name = name + ext
+                zf.write(pg.result_path, arcname=name)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=translated_{task_id}.zip"},
+    )
+
 @app.get("/api/tasks/{task_id}/edit", summary="获取可编辑的翻译文本块")
 async def get_editable_blocks(task_id: str):
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
