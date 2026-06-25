@@ -373,11 +373,29 @@ async def submit_edits(task_id: str, edits: dict):
     return {"task_id": task.id, "status": task.status.value}
 
 
-@app.delete("/api/tasks/{task_id}", summary="删除任务")
-async def delete_task(task_id: str):
-    task = worker.task_store.pop(task_id, None) or worker.load_task(task_id)
+@app.post("/api/tasks/{task_id}/cancel", summary="终止运行中的任务")
+async def cancel_task(task_id: str):
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    if task.is_terminal() or task.status == TaskStatus.awaiting_edit:
+        # Already done/failed/cancelled — just return current status
+        return {"task_id": task_id, "status": task.status.value}
+    cancelled = worker.cancel_task(task_id)
+    if not cancelled:
+        raise HTTPException(status_code=400, detail=f"任务无法取消（当前状态：{task.status.value}）")
+    return {"task_id": task_id, "status": "cancelling"}
+
+
+@app.delete("/api/tasks/{task_id}", summary="删除任务")
+async def delete_task(task_id: str):
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    # If the task is running, mark it for cancellation first
+    if not task.is_terminal() and task.status != TaskStatus.awaiting_edit:
+        worker.cancel_task(task_id)
+    worker.task_store.pop(task_id, None)
     worker.progress_queues.pop(task_id, None)
     worker.last_progress.pop(task_id, None)
     worker.delete_task_files(task)

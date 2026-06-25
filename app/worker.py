@@ -13,15 +13,18 @@ from PIL import Image
 
 from app.models import Page, ProgressEvent, Task, TaskStatus, TextBlockResult
 from app.pipeline import render_pipeline, run_pipeline, warmup
-from config.settings import settings
-
 logger = logging.getLogger("worker")
+
+
+class TaskCancelled(Exception):
+    """Raised inside a worker thread when the task has been cancelled."""
 
 _EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 task_store: dict[str, Task] = {}
 progress_queues: dict[str, Queue] = {}
 last_progress: dict[str, "ProgressEvent"] = {}
+_cancelled: set[str] = set()  # task IDs marked for cancellation
 _task_queue: Queue[Task] = Queue()
 _runner_task: Optional[asyncio.Task] = None
 
@@ -80,11 +83,12 @@ def delete_task_files(task: Task) -> None:
         except OSError:
             pass
 
-
 def _make_inline_hook(task_id: str):
     """Return a coroutine function for progress. Callable from any thread's event loop."""
 
     async def hook(state: str, finished: bool) -> None:
+        if task_id in _cancelled:
+            raise TaskCancelled(task_id)
         if state.startswith("rendering_folder:") or state.startswith("final_ready:"):
             return
         pct, msg, status = _PROGRESS_MAP.get(state, (None, None, None))
@@ -222,18 +226,25 @@ def _execute_task_blocking(task: Task) -> None:
                 q.put_nowait(ev)
         else:
             _persist(TaskStatus.done)
+    except TaskCancelled:
+        logger.info("Task %s cancelled", task.id)
+        task.error = "任务已取消"
+        _persist(TaskStatus.cancelled)
     except Exception as exc:
         logger.exception("Task %s failed", task.id)
         task.error = str(exc)
         _persist(TaskStatus.failed)
     finally:
-        if not interactive or task.status != TaskStatus.awaiting_edit:
+        _cancelled.discard(task.id)
+        if task.status not in (TaskStatus.awaiting_edit,):
             q = progress_queues.get(task.id)
             if q is not None:
                 ev = ProgressEvent(
                     state=task.status.value,
                     progress_pct=100 if task.status == TaskStatus.done else 0,
-                    message_cn="完成" if task.status == TaskStatus.done else f"失败：{task.error}",
+                    message_cn=("完成" if task.status == TaskStatus.done
+                                else "已取消" if task.status == TaskStatus.cancelled
+                                else f"失败：{task.error}"),
                     done=True,
                 )
                 last_progress[task.id] = ev
@@ -321,6 +332,18 @@ async def task_runner() -> None:
             logger.exception("Unhandled error in task runner")
         finally:
             _task_queue.task_done()
+
+
+def cancel_task(task_id: str) -> bool:
+    """Mark a running task for cancellation. Returns True if the task was
+    running and will be cancelled, False if it's not running."""
+    task = task_store.get(task_id)
+    if task is None:
+        return False
+    if task.is_terminal() or task.status == TaskStatus.awaiting_edit:
+        return False
+    _cancelled.add(task_id)
+    return True
 
 
 async def enqueue_task(task: Task) -> None:

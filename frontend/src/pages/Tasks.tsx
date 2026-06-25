@@ -44,7 +44,7 @@ export default function Tasks() {
       )}
 
       <div className="space-y-3">
-        {tasks.map((t) => <TaskCard key={t.id} task={t} />)}
+        {tasks.map((t) => <TaskCard key={t.id} task={t} onChanged={load} />)}
       </div>
     </div>
   )

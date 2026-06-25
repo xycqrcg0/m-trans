@@ -19,7 +19,7 @@ class TaskStatus(str, Enum):
     awaiting_edit = "awaiting_edit"
     done = "done"
     failed = "failed"
-
+    cancelled = "cancelled"
 
 class TaskConfig(BaseModel):
     target_lang: str = "CHS"
@@ -66,7 +66,7 @@ class Task(BaseModel):
     error: Optional[str] = None
 
     def is_terminal(self) -> bool:
-        return self.status in (TaskStatus.done, TaskStatus.failed)
+        return self.status in (TaskStatus.done, TaskStatus.failed, TaskStatus.cancelled)
 
 
 class GlossaryEntry(BaseModel):

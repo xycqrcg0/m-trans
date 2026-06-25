@@ -30,11 +30,14 @@ export function useTaskProgress(taskId: string, skip: boolean): TaskProgressStat
         pollRef.current = setInterval(async () => {
           try {
             const task = await getTask(taskId)
-            if (task.status === 'done' || task.status === 'failed' || task.status === 'awaiting_edit') {
+            if (['done', 'failed', 'cancelled', 'awaiting_edit'].includes(task.status)) {
               setProgress({
                 state: task.status,
                 progress_pct: task.status === 'done' ? 100 : (task.status === 'awaiting_edit' ? 82 : 0),
-                message_cn: task.status === 'done' ? '完成' : (task.status === 'awaiting_edit' ? '等待编辑翻译' : (task.error ?? '失败')),
+                message_cn: task.status === 'done' ? '完成'
+                  : task.status === 'cancelled' ? '已取消'
+                  : task.status === 'awaiting_edit' ? '等待编辑翻译'
+                  : (task.error ?? '失败'),
                 done: true,
               })
               clearInterval(pollRef.current)
