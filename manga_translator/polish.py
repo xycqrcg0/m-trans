@@ -185,11 +185,18 @@ async def polish_translations(
     if not text_regions:
         return
 
-    # 1. Glossary pre-substitution
+    # 1. Snapshot the pre-polish translation so callers can show a before/after
+    #    comparison. glossary substitution (step 2) also mutates `translation`,
+    #    so we capture before that too.
+    for r in text_regions:
+        if not hasattr(r, "raw_translation"):
+            r.raw_translation = getattr(r, "translation", "") or ""
+
+    # 2. Glossary pre-substitution
     if glossary:
         apply_glossary_to_regions(text_regions, glossary)
 
-    # 2. Collect texts that actually have content
+    # 3. Collect texts that actually have content
     indices: list[int] = []
     texts: list[str] = []
     for i, r in enumerate(text_regions):
@@ -202,19 +209,19 @@ async def polish_translations(
     if not texts:
         return
 
-    # 3. Short-circuit when there is no API key (common during development)
+    # 4. Short-circuit when there is no API key (common during development)
     if not api_key:
         logger.info("No API key set for polish — skipping LLM refinement")
         return
 
-    # 4. Call LLM
+    # 5. Call LLM
     system = system_prompt or POLISH_SYSTEM_PROMPT
     user_msg = _build_prompt(texts)
     raw = await _call_claude(api_key, system, user_msg)
     if raw is None:
         return  # fallback: keep original translation
 
-    # 5. Parse and write back
+    # 6. Parse and write back
     results = _parse_response(raw, len(texts))
     for idx_in_batch, (orig_idx, polished) in enumerate(zip(indices, results)):
         if polished:

@@ -31,7 +31,11 @@ const FALLBACK_OCR: OptionItem[] = [
 const FALLBACK_INPAINTERS: OptionItem[] = [
   { id: 'lama_large', name: 'LaMa Large' }, { id: 'none', name: '不擦字' },
 ]
-
+// Translators that are already LLM-based — polish would be redundant.
+const LLM_TRANSLATORS = new Set([
+  'chatgpt', 'chatgpt_2stage', 'deepseek', 'groq', 'gemini',
+  'gemini_2stage', 'custom_openai', 'sakura',
+])
 export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   const [langs, setLangs] = useState<OptionItem[]>(FALLBACK_LANGS)
   const [translators, setTranslators] = useState<TranslatorOption[]>(FALLBACK_TRANSLATORS)
@@ -53,6 +57,7 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   }, [])
 
   const isEraseOnly = config.render_translated_text === false
+  const isLLMTranslator = !!config.translator && LLM_TRANSLATORS.has(config.translator)
 
   return (
     <TooltipProvider>
@@ -105,10 +110,11 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
 
         {!isEraseOnly && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 ${isLLMTranslator ? 'opacity-50' : ''}`}>
               <Switch
                 id="polish"
                 checked={config.polish ?? false}
+                disabled={isLLMTranslator}
                 onCheckedChange={(v) => onChange({ ...config, polish: v })}
               />
               <label htmlFor="polish" className="flex items-center gap-1 text-sm font-medium cursor-pointer">
@@ -117,9 +123,16 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                   <TooltipTrigger asChild>
                     <Info className="h-3.5 w-3.5 text-slate-400" />
                   </TooltipTrigger>
-                  <TooltipContent>使用 Claude 将译文改写为二次元语境风格</TooltipContent>
+                  <TooltipContent>
+                    {isLLMTranslator
+                      ? '当前翻译引擎已是 LLM，润色会重复且可能冲突，已自动跳过'
+                      : '使用 Claude 将译文改写为二次元语境风格'}
+                  </TooltipContent>
                 </Tooltip>
               </label>
+              {isLLMTranslator && (
+                <span className="text-xs text-slate-400">LLM 引擎无需润色</span>
+              )}
             </div>
 
             {glossaries.length > 0 && (

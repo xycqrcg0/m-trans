@@ -113,13 +113,17 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
                 xyxy = [int(v) for v in pts]
         except Exception:
             pass
-        translated = getattr(region, "translation", "") or ""
+        translated = getattr(region, "raw_translation", None)
+        if translated is None:
+            # No polish ran; raw == final
+            translated = getattr(region, "translation", "") or ""
+        polished = getattr(region, "translation", "") or ""
         blocks.append(
             TextBlockResult(
                 xyxy=xyxy,
                 original_text=getattr(region, "text", "") or "",
                 translated_text=translated,
-                polished_text=translated,
+                polished_text=polished,
             )
         )
     return blocks

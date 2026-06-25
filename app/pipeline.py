@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
@@ -26,6 +27,8 @@ from manga_translator.config import (
 from manga_translator.utils import Context
 
 ProgressHook = Callable[[str, bool], Awaitable[None]]
+
+logger = logging.getLogger("pipeline")
 
 _translator: Optional[MangaTranslator] = None
 _translator_lock = asyncio.Lock()
@@ -101,6 +104,17 @@ def _make_polish_fn(task_cfg: TaskConfig):
     if not task_cfg.polish:
         return None
 
+    # LLM translators already produce natural, context-aware output; running a
+    # second LLM (Claude) polish on top is redundant work and can cause style
+    # conflicts. Skip polish for those and let the raw translation stand.
+    if task_cfg.translator in _GPT_TRANSLATORS:
+        logger.info(
+            "Polish disabled: translator '%s' is already LLM-based, skipping "
+            "redundant Claude polish",
+            task_cfg.translator,
+        )
+        return None
+
     set_glossary_dir(settings.glossary_dir)
     glossary = load_glossary_mapping(task_cfg.glossary_id) if task_cfg.glossary_id else None
 
@@ -115,7 +129,7 @@ def _make_polish_fn(task_cfg: TaskConfig):
 
 
 _GPT_TRANSLATORS = {"chatgpt", "chatgpt_2stage", "deepseek", "groq", "gemini",
-                     "gemini_2stage", "custom_openai"}
+                     "gemini_2stage", "custom_openai", "sakura"}
 
 
 async def run_pipeline(
