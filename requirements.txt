@@ -1,5 +1,6 @@
 networkx
-pydensecrf @ git+https://github.com/lucasb-eyer/pydensecrf.git
+rarfile
+py7zr
 torch
 groq
 torchvision

@@ -64,13 +64,75 @@ app.add_middleware(
 )
 
 
-@app.post("/api/tasks", response_model=CreateTaskResponse, summary="创建翻译任务（支持多图）")
+import zipfile as _zipfile
+
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+_ARCHIVE_EXTS = {".cbz", ".cbr", ".zip", ".rar", ".7z"}
+
+
+def _extract_images_from_archive(content: bytes, filename: str) -> list[tuple[str, bytes]]:
+    """Extract image files from a comic archive (.cbz/.cbr/.zip/.rar).
+    Returns list of (arcname, image_bytes) sorted by filename.
+    """
+    ext = Path(filename).suffix.lower()
+    images: list[tuple[str, bytes]] = []
+
+    if ext in (".cbz", ".zip"):
+        import io
+        with _zipfile.ZipFile(io.BytesIO(content)) as zf:
+            names = sorted(
+                n for n in zf.namelist()
+                if not n.startswith("__MACOSX") and not n.startswith(".")
+                and Path(n).suffix.lower() in _IMAGE_EXTS
+                and not n.endswith("/")
+            )
+            for name in names:
+                images.append((name, zf.read(name)))
+
+    elif ext in (".cbr", ".rar"):
+        try:
+            import rarfile
+            import io
+            with rarfile.RarFile(io.BytesIO(content)) as rf:
+                names = sorted(
+                    n for n in rf.namelist()
+                    if not n.startswith("__MACOSX") and not n.startswith(".")
+                    and Path(n).suffix.lower() in _IMAGE_EXTS
+                    and not n.endswith("/")
+                )
+                for name in names:
+                    images.append((name, rf.read(name)))
+        except rarfile.RarCannotExec:
+            raise HTTPException(
+                status_code=400,
+                detail="解压 .cbr/.rar 需要系统安装 unrar 或 unar 命令行工具",
+            )
+
+    elif ext == ".7z":
+        try:
+            import py7zr
+            import io
+            with py7zr.SevenZipFile(io.BytesIO(content), mode="r") as sz:
+                for name, bio in sz.readall().items():
+                    if Path(name).suffix.lower() in _IMAGE_EXTS:
+                        images.append((name, bio.read()))
+            images.sort(key=lambda x: x[0])
+        except ImportError:
+            raise HTTPException(
+                status_code=400,
+                detail="解压 .7z 需要 py7zr 库",
+            )
+
+    return images
+
+
+@app.post("/api/tasks", response_model=CreateTaskResponse, summary="创建翻译任务（支持多图或漫画压缩包）")
 async def create_task(
-    images: List[UploadFile] = File(..., description="漫画图片列表（JPG/PNG/WebP）"),
+    images: List[UploadFile] = File(..., description="漫画图片或压缩包（JPG/PNG/WebP/CBZ/CBR/ZIP/RAR）"),
     config: str = Form(default="{}", description="TaskConfig JSON 字符串"),
 ):
     if not images:
-        raise HTTPException(status_code=400, detail="至少上传一张图片")
+        raise HTTPException(status_code=400, detail="至少上传一张图片或一个压缩包")
 
     try:
         cfg = TaskConfig.model_validate(json.loads(config))
@@ -82,17 +144,39 @@ async def create_task(
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     pages: list[Page] = []
-    for idx, img in enumerate(images):
-        content_type = img.content_type or ""
-        if not content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"文件 {img.filename} 不是图片")
-        content = await img.read()
-        if len(content) > 20 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail=f"图片 {img.filename} 超过 20MB 限制")
-        suffix = Path(img.filename or f"image_{idx}.jpg").suffix or ".jpg"
-        upload_path = upload_dir / f"page_{idx:04d}{suffix}"
-        upload_path.write_bytes(content)
-        pages.append(Page(filename=img.filename or upload_path.name, upload_path=str(upload_path)))
+    page_idx = 0
+
+    for upload in images:
+        content = await upload.read()
+        filename = upload.filename or f"file_{page_idx}"
+        ext = Path(filename).suffix.lower()
+
+        if ext in _ARCHIVE_EXTS:
+            # Extract images from comic archive
+            if len(content) > 200 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail=f"压缩包 {filename} 超过 200MB 限制")
+            extracted = _extract_images_from_archive(content, filename)
+            if not extracted:
+                raise HTTPException(status_code=400, detail=f"压缩包 {filename} 中没有找到图片文件")
+            for arcname, img_bytes in extracted:
+                suffix = Path(arcname).suffix or ".jpg"
+                upload_path = upload_dir / f"page_{page_idx:04d}{suffix}"
+                upload_path.write_bytes(img_bytes)
+                pages.append(Page(filename=arcname, upload_path=str(upload_path)))
+                page_idx += 1
+        elif ext in _IMAGE_EXTS or (upload.content_type or "").startswith("image/"):
+            if len(content) > 20 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail=f"图片 {filename} 超过 20MB 限制")
+            suffix = ext or ".jpg"
+            upload_path = upload_dir / f"page_{page_idx:04d}{suffix}"
+            upload_path.write_bytes(content)
+            pages.append(Page(filename=filename, upload_path=str(upload_path)))
+            page_idx += 1
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的文件类型：{filename}（支持 JPG/PNG/WebP/CBZ/CBR/ZIP/RAR）")
+
+    if not pages:
+        raise HTTPException(status_code=400, detail="没有有效的图片文件")
 
     task.pages = pages
     await worker.enqueue_task(task)
@@ -193,13 +277,20 @@ async def get_inpainted(task_id: str, page: int = 1):
     return FileResponse(path=str(inpainted_path), media_type="image/png", filename=f"inpainted_{task_id}_p{page}.png")
 
 
-@app.get("/api/tasks/{task_id}/download", summary="打包下载全部结果图 ZIP")
-async def download_all_results(task_id: str):
+@app.get("/api/tasks/{task_id}/download", summary="打包下载全部结果图 (ZIP/CBZ)")
+async def download_all_results(task_id: str, format: str = "zip"):
+    """Download all result images as a ZIP or CBZ archive.
+    CBZ is just a ZIP with .cbz extension — supported by all comic readers.
+    """
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     if task.status != TaskStatus.done:
         raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
+
+    fmt = format.lower()
+    if fmt not in ("zip", "cbz"):
+        fmt = "zip"
 
     import io
     import zipfile
@@ -208,9 +299,7 @@ async def download_all_results(task_id: str):
         for i, pg in enumerate(task.pages):
             if pg.result_path and Path(pg.result_path).exists():
                 ext = Path(pg.result_path).suffix or ".png"
-                # Use original filename if available, otherwise page index
                 name = pg.filename if pg.filename else f"page_{i+1:04d}"
-                # Ensure unique and has extension
                 if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                     name = name + ext
                 zf.write(pg.result_path, arcname=name)
@@ -218,7 +307,7 @@ async def download_all_results(task_id: str):
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=translated_{task_id}.zip"},
+        headers={"Content-Disposition": f'attachment; filename="translated_{task_id}.{fmt}"'},
     )
 
 @app.get("/api/tasks/{task_id}/edit", summary="获取可编辑的翻译文本块")

@@ -99,12 +99,20 @@ export default function TaskDetail() {
         </Link>
         <div className="flex items-center gap-2">
           {totalPages > 1 && (
-            <a
-              href={getDownloadAllUrl(task.id)}
-              className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <Download className="h-4 w-4" />下载全部 (ZIP)
-            </a>
+            <>
+              <a
+                href={getDownloadAllUrl(task.id, "cbz")}
+                className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <Download className="h-4 w-4" />下载全部 (CBZ)
+              </a>
+              <a
+                href={getDownloadAllUrl(task.id, "zip")}
+                className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <Download className="h-4 w-4" />下载全部 (ZIP)
+              </a>
+            </>
           )}
           <a
             href={resultUrl}
