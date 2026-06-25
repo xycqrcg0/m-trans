@@ -16,8 +16,8 @@ class TaskStatus(str, Enum):
     polishing = "polishing"
     inpainting = "inpainting"
     rendering = "rendering"
+    awaiting_edit = "awaiting_edit"
     done = "done"
-    failed = "failed"
 
 
 class TaskConfig(BaseModel):
@@ -38,6 +38,7 @@ class TaskConfig(BaseModel):
     mask_dilation_offset: int = 20
     mask_kernel_size: int = 3
     inpainting_size: int = 2048
+    interactive_edit: bool = False
 
 
 class TextBlockResult(BaseModel):

@@ -7,13 +7,14 @@ import type { Task, TaskStatus } from '@/lib/api'
 const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: '等待中', detecting: '检测文字', ocr: '识别文字',
   translating: '翻译中', polishing: '润色中', inpainting: '修复图像',
-  rendering: '渲染文字', done: '已完成', failed: '失败',
+  rendering: '渲染文字', awaiting_edit: '待编辑', done: '已完成', failed: '失败',
 }
 
 function StatusBadge({ status }: { status: TaskStatus }) {
   const base = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium'
   if (status === 'done') return <span className={`${base} bg-green-100 text-green-700`}><CheckCircle className="h-3 w-3" />已完成</span>
   if (status === 'failed') return <span className={`${base} bg-red-100 text-red-700`}><XCircle className="h-3 w-3" />失败</span>
+  if (status === 'awaiting_edit') return <span className={`${base} bg-amber-100 text-amber-700`}><Clock className="h-3 w-3" />待编辑</span>
   if (status === 'pending') return <span className={`${base} bg-slate-100 text-slate-600`}><Clock className="h-3 w-3" />等待中</span>
   return <span className={`${base} bg-blue-100 text-blue-700`}><Loader2 className="h-3 w-3 animate-spin" />运行中</span>
 }
@@ -21,15 +22,16 @@ function StatusBadge({ status }: { status: TaskStatus }) {
 interface TaskCardProps {
   task: Task
 }
-
 export function TaskCard({ task }: TaskCardProps) {
   const isTerminal = task.status === 'done' || task.status === 'failed'
-  const progress = useTaskProgress(task.id, isTerminal)
+  const isAwaitingEdit = task.status === 'awaiting_edit'
+  const skipProgress = isTerminal || isAwaitingEdit
+  const progress = useTaskProgress(task.id, skipProgress)
 
-  const status = isTerminal ? task.status : progress.state
-  const pct = isTerminal ? (task.status === 'done' ? 100 : 0) : progress.progress_pct
-  const message = isTerminal
-    ? (task.status === 'done' ? '完成' : task.error ?? '失败')
+  const status = skipProgress ? task.status : progress.state
+  const pct = isTerminal ? (task.status === 'done' ? 100 : 0) : (isAwaitingEdit ? 82 : progress.progress_pct)
+  const message = skipProgress
+    ? (task.status === 'done' ? '完成' : isAwaitingEdit ? '等待编辑翻译' : task.error ?? '失败')
     : progress.message_cn
 
   const filename = task.pages[0]?.filename ?? '未知文件'
@@ -45,7 +47,7 @@ export function TaskCard({ task }: TaskCardProps) {
         <StatusBadge status={status} />
       </div>
 
-      {!isTerminal && (
+      {!isTerminal && !isAwaitingEdit && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-slate-500">
             <span>{STATUS_LABELS[status] ?? message}</span>
@@ -55,16 +57,26 @@ export function TaskCard({ task }: TaskCardProps) {
         </div>
       )}
 
+      {isAwaitingEdit && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-slate-500">
+            <span>等待编辑翻译</span>
+            <span>82%</span>
+          </div>
+          <Progress value={82} />
+        </div>
+      )}
+
       {task.status === 'failed' && task.error && (
         <p className="text-xs text-red-500 truncate">{task.error}</p>
       )}
 
-      {task.status === 'done' && (
+      {(task.status === 'done' || isAwaitingEdit) && (
         <Link
           to={`/tasks/${task.id}`}
           className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
         >
-          查看结果 <ChevronRight className="h-4 w-4" />
+          {isAwaitingEdit ? '编辑翻译' : '查看结果'} <ChevronRight className="h-4 w-4" />
         </Link>
       )}
     </div>

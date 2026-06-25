@@ -136,6 +136,7 @@ async def run_pipeline(
     image: Image.Image,
     task_cfg: TaskConfig,
     on_progress: Optional[ProgressHook] = None,
+    stop_before_render: bool = False,
 ) -> Context:
     async with _pipeline_lock:
         translator = await get_translator()
@@ -157,16 +158,17 @@ async def run_pipeline(
                 mit_path = str(_DICT_DIR / "mit_glossary.txt")
                 os.environ["OPENAI_GLOSSARY_PATH"] = mit_path
                 os.environ["SAKURA_DICT_PATH"] = mit_path
-
             if on_progress:
                 translator.add_progress_hook(on_progress)
             if polish_fn:
                 translator.set_polish_fn(polish_fn)
+            translator._stop_before_render = stop_before_render
 
             ctx = await translator.translate(image, config)
         finally:
             if polish_fn:
                 translator.set_polish_fn(None)
+            translator._stop_before_render = False
             if on_progress:
                 translator._progress_hooks = [
                     ph for ph in translator._progress_hooks if ph is not on_progress
@@ -200,6 +202,19 @@ async def run_pipeline(
                     region.translation = apply_glossary(raw, mapping)
                 logger.info("Applied glossary (%d terms) post-translation", len(mapping))
 
+    return ctx
+
+async def render_pipeline(ctx: Context, task_cfg: TaskConfig) -> Context:
+    """Render text onto an already-inpainted image.
+
+    Called after ``run_pipeline(..., stop_before_render=True)`` once the
+    caller has optionally edited ``ctx.text_regions[].translation``.
+    """
+    async with _pipeline_lock:
+        translator = await get_translator()
+        config = _build_config(task_cfg)
+        translator.context_size = task_cfg.context_size
+        ctx = await translator.render_translations(config, ctx)
     return ctx
 
 

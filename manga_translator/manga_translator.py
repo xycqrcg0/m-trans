@@ -140,6 +140,7 @@ class MangaTranslator:
 
         # polish callback — set via set_polish_fn(), called after translation
         self._polish_fn = None
+        self._stop_before_render = False
 
 
     def parse_init_params(self, params: dict):
@@ -484,6 +485,13 @@ class MangaTranslator:
             except Exception as e:
                 logger.error(f"Error saving inpainted.png debug image: {e}")
                 logger.debug(f"Exception details: {traceback.format_exc()}")
+        # -- Interactive edit: stop before rendering so the caller can
+        # modify translations and then call render_translations().
+        if self._stop_before_render:
+            await self._report_progress('awaiting-edit', True)
+            ctx.result = None
+            return ctx
+
         # -- Rendering
         await self._report_progress('rendering')
 
@@ -548,6 +556,26 @@ class MangaTranslator:
             return ctx
 
         return ctx
+
+    async def render_translations(self, config: Config, ctx: Context) -> Context:
+        """Render text onto an already-inpainted image.
+
+        Called after ``translate(..., stop_before_render=True)`` to finish the
+        pipeline once the caller has optionally edited ``ctx.text_regions``.
+        """
+        # -- Rendering (same logic as the tail of _translate)
+        await self._report_progress('rendering')
+        try:
+            ctx.img_rendered = await self._run_text_rendering(config, ctx)
+        except Exception as e:
+            logger.error(f"Error during rendering:\n{traceback.format_exc()}")
+            if not self.ignore_errors:
+                raise
+            ctx.img_rendered = ctx.img_inpainted
+
+        await self._report_progress('finished', True)
+        ctx.result = dump_image(ctx.input, ctx.img_rendered, ctx.img_alpha)
+        return await self._revert_upscale(config, ctx)
 
     async def _run_colorizer(self, config: Config, ctx: Context):
         current_time = time.time()

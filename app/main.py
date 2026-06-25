@@ -160,7 +160,7 @@ async def get_result(task_id: str, page: int = 1):
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    if task.status != TaskStatus.done:
+    if task.status not in (TaskStatus.done, TaskStatus.awaiting_edit, TaskStatus.rendering):
         raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
     if page < 1 or page > len(task.pages):
         raise HTTPException(status_code=404, detail=f"页码超出范围（1-{len(task.pages)}）")
@@ -179,7 +179,7 @@ async def get_inpainted(task_id: str, page: int = 1):
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    if task.status != TaskStatus.done:
+    if task.status not in (TaskStatus.done, TaskStatus.awaiting_edit):
         raise HTTPException(status_code=202, detail=f"任务尚未完成，当前状态：{task.status.value}")
     if page < 1 or page > len(task.pages):
         raise HTTPException(status_code=404, detail=f"页码超出范围（1-{len(task.pages)}）")
@@ -191,6 +191,65 @@ async def get_inpainted(task_id: str, page: int = 1):
     if not inpainted_path.exists():
         raise HTTPException(status_code=404, detail="擦字图已被删除")
     return FileResponse(path=str(inpainted_path), media_type="image/png", filename=f"inpainted_{task_id}_p{page}.png")
+
+
+@app.get("/api/tasks/{task_id}/edit", summary="获取可编辑的翻译文本块")
+async def get_editable_blocks(task_id: str):
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.status != TaskStatus.awaiting_edit:
+        raise HTTPException(status_code=400, detail=f"任务不在可编辑状态（当前：{task.status.value}）")
+    return {
+        "task_id": task.id,
+        "pages": [
+            {
+                "page_index": i,
+                "filename": pg.filename,
+                "text_blocks": [
+                    {
+                        "index": j,
+                        "original_text": b.original_text,
+                        "translated_text": b.translated_text,
+                        "polished_text": b.polished_text,
+                    }
+                    for j, b in enumerate(pg.text_blocks)
+                ],
+            }
+            for i, pg in enumerate(task.pages)
+        ],
+    }
+
+
+@app.post("/api/tasks/{task_id}/edit", summary="提交编辑后的翻译并渲染")
+async def submit_edits(task_id: str, edits: dict):
+    """Submit edited translations and trigger rendering.
+
+    Request body: {"pages": {"0": ["edited text 1", "edited text 2", ...], "1": [...]}}
+    Keys are page indices (as strings, JSON requirement), values are lists of
+    edited translation strings in text-block order.
+    """
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.status != TaskStatus.awaiting_edit:
+        raise HTTPException(status_code=400, detail=f"任务不在可编辑状态（当前：{task.status.value}）")
+
+    # Parse the pages dict into {page_index: [texts]}
+    pages_data = edits.get("pages", edits)
+    edited_texts: dict[int, list[str]] = {}
+    for k, v in pages_data.items():
+        try:
+            idx = int(k)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(v, list):
+            edited_texts[idx] = [str(t) if t else "" for t in v]
+
+    # Run rendering on the worker thread
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(worker._EXECUTOR, worker.render_edited_task, task, edited_texts)
+    return {"task_id": task.id, "status": task.status.value}
 
 
 @app.delete("/api/tasks/{task_id}", summary="删除任务")

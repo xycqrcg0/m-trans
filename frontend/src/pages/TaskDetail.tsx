@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getTask, getResultUrl, getInpaintedUrl, type Task } from '@/lib/api'
 import { ResultViewer } from '@/components/ResultViewer'
+import { TranslationEditor } from '@/components/TranslationEditor'
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>()
@@ -10,10 +11,12 @@ export default function TaskDetail() {
   const [error, setError] = useState<string | null>(null)
   const [pageIdx, setPageIdx] = useState(0)
 
-  useEffect(() => {
+  function refresh() {
     if (!id) return
     getTask(id).then(setTask).catch(() => setError('加载任务失败'))
-  }, [id])
+  }
+
+  useEffect(() => { refresh() }, [id])
 
   if (error) return (
     <div className="p-6 text-center text-sm text-red-500">{error}</div>
@@ -23,6 +26,56 @@ export default function TaskDetail() {
     <div className="p-6 text-center text-sm text-slate-400">加载中…</div>
   )
 
+  // awaiting_edit: show translation editor + inpainted preview
+  if (task.status === 'awaiting_edit') {
+    const page = task.pages[pageIdx]
+    const totalPages = task.pages.length
+    const inpaintedUrl = getInpaintedUrl(task.id, pageIdx + 1)
+
+    return (
+      <div className="mx-auto max-w-4xl space-y-5 p-6">
+        <Link to="/tasks" className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
+          <ArrowLeft className="h-4 w-4" />返回任务列表
+        </Link>
+
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 truncate">{page?.filename ?? task.id}</h1>
+          <p className="text-xs text-slate-400">
+            翻译和擦字已完成，请检查并修改译文，然后点击提交进行嵌字渲染
+          </p>
+        </div>
+
+        {/* Inpainted image preview */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => setPageIdx(Math.max(0, pageIdx - 1))}
+              disabled={pageIdx === 0}
+              className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30 hover:bg-slate-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm text-slate-600">第 {pageIdx + 1} / {totalPages} 页</span>
+            <button
+              onClick={() => setPageIdx(Math.min(totalPages - 1, pageIdx + 1))}
+              disabled={pageIdx === totalPages - 1}
+              className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30 hover:bg-slate-50"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="overflow-hidden rounded-lg border border-slate-200">
+          <img src={inpaintedUrl} alt="擦字预览" className="w-full" />
+        </div>
+
+        <TranslationEditor taskId={task.id} onCompleted={refresh} />
+      </div>
+    )
+  }
+
+  // Non-done, non-awaiting: show progress
   if (task.status !== 'done') return (
     <div className="mx-auto max-w-2xl p-6">
       <Link to="/tasks" className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
@@ -32,6 +85,7 @@ export default function TaskDetail() {
     </div>
   )
 
+  // Done: show result
   const page = task.pages[pageIdx]
   const totalPages = task.pages.length
   const resultUrl = getResultUrl(task.id, pageIdx + 1)

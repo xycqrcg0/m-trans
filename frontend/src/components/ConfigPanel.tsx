@@ -155,6 +155,27 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
           </div>
         )}
 
+        {!isEraseOnly && (
+          <div className="flex items-center gap-2">
+            <Switch
+              id="interactive_edit"
+              checked={config.interactive_edit ?? false}
+              onCheckedChange={(v) => onChange({ ...config, interactive_edit: v })}
+            />
+            <label htmlFor="interactive_edit" className="flex items-center gap-1 text-sm font-medium cursor-pointer">
+              嵌字前编辑
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-slate-400" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  翻译和擦字完成后暂停，允许修改译文再嵌字。不开启则全自动完成。
+                </TooltipContent>
+              </Tooltip>
+            </label>
+          </div>
+        )}
+
         {/* 高级设置 */}
         <button
           type="button"
