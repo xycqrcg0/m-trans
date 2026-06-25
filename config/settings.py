@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # application logs
     log_dir: Path = BASE_DIR / "storage" / "logs"
     log_retention_days: int = 7
+    glossary_dir: Path = BASE_DIR / "glossaries"
 
     # service
     host: str = "0.0.0.0"
