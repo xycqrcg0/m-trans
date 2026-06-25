@@ -371,6 +371,12 @@ class SakuraTranslator(CommonTranslator):
                 if not check_func(response):
                     return response
             return None
+        # Early exit: empty response means the API was unreachable
+        # or returned nothing. Skip quality checks and return original
+        # queries as translations to avoid cascading retry failures.
+        if not response:
+            self.logger.warning('Sakura 返回空响应，跳过质量检查，使用原文作为翻译结果。')
+            return list(queries)
 
         # 检查请求内容是否含有超过默认阈值的重复内容
         if self._detect_repeats(''.join(queries), self._REPEAT_DETECT_THRESHOLD):
@@ -452,7 +458,7 @@ class SakuraTranslator(CommonTranslator):
 
         # 发送翻译请求
         response = await self._handle_translation_request(queries)
-        self.logger.debug('-- Sakura Response --\n' + response + '\n\n')
+        self.logger.debug('-- Sakura Response --\n' + str(response) + '\n\n')
 
         # 检查翻译结果是否存在重复或行数不匹配的问题
         translations = await self._check_translation_quality(queries, response)
@@ -486,7 +492,7 @@ class SakuraTranslator(CommonTranslator):
                 server_error_attempt += 1
                 if server_error_attempt >= self._RETRY_ATTEMPTS:
                     self.logger.error(f'Sakura API请求失败。错误信息： {e}')
-                    return prompt
+                    return ""
                 self.logger.warning(f'Sakura因服务器错误而进行重试。尝试次数： {server_error_attempt}，错误信息： {e}')
 
         return response
