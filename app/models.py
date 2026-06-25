@@ -18,6 +18,7 @@ class TaskStatus(str, Enum):
     rendering = "rendering"
     awaiting_edit = "awaiting_edit"
     done = "done"
+    failed = "failed"
 
 
 class TaskConfig(BaseModel):
