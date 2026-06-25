@@ -19,6 +19,7 @@ class SakuraDict():
     def __init__(self, path: str, logger: logging.Logger, version: str = "0.9") -> None:
         self.logger = logger
         self.dict_str = ""
+        self.entries: list[dict] = []  # [{"src": ..., "dst": ..., "info": ...}]
         self.version = version
         if not os.path.exists(path):
             if self.version == '0.10':
@@ -31,148 +32,103 @@ class SakuraDict():
         if self.version == '0.9':
             self.logger.info("您当前选择了Sakura 0.9版本，暂不支持术语表")
 
-    def load_galtransl_dic(self, dic_path: str):
-        """
-        载入Galtransl词典。
-        """
+    def _add_entry(self, src: str, dst: str, info: str | None) -> str:
+        """Register an entry and return its string form."""
+        self.entries.append({"src": src, "dst": dst, "info": info})
+        if info:
+            return f"{src}->{dst} #{info}"
+        return f"{src}->{dst}"
 
+    def load_galtransl_dic(self, dic_path: str):
+        """载入Galtransl词典。"""
         with open(dic_path, encoding="utf8") as f:
             dic_lines = f.readlines()
         if len(dic_lines) == 0:
             return
-        dic_path = os.path.abspath(dic_path)
         dic_name = os.path.basename(dic_path)
         normalDic_count = 0
-
-        gpt_dict = []
+        gpt_dict_text_list = []
         for line in dic_lines:
             if line.startswith("\n"):
                 continue
-            elif line.startswith("\\\\") or line.startswith("//"):  # 注释行跳过
+            elif line.startswith("\\\\") or line.startswith("//"):
                 continue
-
-            # 四个空格换成Tab
             line = line.replace("    ", "\t")
-
-            sp = line.rstrip("\r\n").split("\t")  # 去多余换行符，Tab分割
-            len_sp = len(sp)
-
-            if len_sp < 2:  # 至少是2个元素
+            sp = line.rstrip("\r\n").split("\t")
+            if len(sp) < 2:
                 continue
-
-            src = sp[0]
-            dst = sp[1]
-            info = sp[2] if len_sp > 2 else None
-            gpt_dict.append({"src": src, "dst": dst, "info": info})
-            normalDic_count += 1
-
-        gpt_dict_text_list = []
-        for gpt in gpt_dict:
-            src = gpt['src']
-            dst = gpt['dst']
-            info = gpt['info'] if "info" in gpt.keys() else None
+            src, dst = sp[0], sp[1]
+            info = sp[2].strip() if len(sp) > 2 else None
             if info:
-                single = f"{src}->{dst} #{info}"
-            else:
-                single = f"{src}->{dst}"
-            gpt_dict_text_list.append(single)
-
-        gpt_dict_raw_text = "\n".join(gpt_dict_text_list)
-        self.dict_str = gpt_dict_raw_text
-        self.logger.info(
-            f"载入 Galtransl 字典: {dic_name} {normalDic_count}普通词条"
-        )
+                info = info.lstrip('#').strip()
+            gpt_dict_text_list.append(self._add_entry(src, dst, info))
+            normalDic_count += 1
+        self.dict_str = "\n".join(gpt_dict_text_list)
+        self.logger.info(f"载入 Galtransl 字典: {dic_name} {normalDic_count}普通词条")
 
     def load_sakura_dict(self, dic_path: str):
-        """
-        直接载入标准的Sakura字典。
-        """
-
+        """直接载入标准的Sakura字典。"""
         with open(dic_path, encoding="utf8") as f:
             dic_lines = f.readlines()
-
         if len(dic_lines) == 0:
             return
-        dic_path = os.path.abspath(dic_path)
         dic_name = os.path.basename(dic_path)
         normalDic_count = 0
-
         gpt_dict_text_list = []
         for line in dic_lines:
             if line.startswith("\n"):
                 continue
-            elif line.startswith("\\\\") or line.startswith("//"):  # 注释行跳过
+            elif line.startswith("\\\\") or line.startswith("//"):
                 continue
-
-            sp = line.rstrip("\r\n").split("->")  # 去多余换行符，->分割
-            len_sp = len(sp)
-
-            if len_sp < 2:  # 至少是2个元素
+            sp = line.rstrip("\r\n").split("->")
+            if len(sp) < 2:
                 continue
-
             src = sp[0]
-            dst_info = sp[1].split("#")  # 使用#分割目标和信息
+            dst_info = sp[1].split("#")
             dst = dst_info[0].strip()
             info = dst_info[1].strip() if len(dst_info) > 1 else None
-            if info:
-                single = f"{src}->{dst} #{info}"
-            else:
-                single = f"{src}->{dst}"
-            gpt_dict_text_list.append(single)
+            gpt_dict_text_list.append(self._add_entry(src, dst, info))
             normalDic_count += 1
-
-        gpt_dict_raw_text = "\n".join(gpt_dict_text_list)
-        self.dict_str = gpt_dict_raw_text
-        self.logger.info(
-            f"载入标准Sakura字典: {dic_name} {normalDic_count}普通词条"
-        )
+        self.dict_str = "\n".join(gpt_dict_text_list)
+        self.logger.info(f"载入标准Sakura字典: {dic_name} {normalDic_count}普通词条")
 
     def detect_type(self, dic_path: str):
-        """
-        检测字典类型。
-        """
+        """检测字典类型。"""
         with open(dic_path, encoding="utf8") as f:
             dic_lines = f.readlines()
         self.logger.debug(f"检测字典类型: {dic_path}")
         if len(dic_lines) == 0:
             return "unknown"
 
+        def _is_comment(line: str) -> bool:
+            s = line.strip()
+            return (not s or s.startswith("#") or s.startswith("\\\\")
+                    or s.startswith("//"))
+
         # 判断是否为Galtransl字典
         is_galtransl = True
         for line in dic_lines:
-            if line.startswith("\n"):
+            if _is_comment(line):
                 continue
-            elif line.startswith("\\\\") or line.startswith("//"):
-                continue
-
             if "\t" not in line and "    " not in line:
                 is_galtransl = False
                 break
-
         if is_galtransl:
             return "galtransl"
-
         # 判断是否为Sakura字典
         is_sakura = True
         for line in dic_lines:
-            if line.startswith("\n"):
+            if _is_comment(line):
                 continue
-            elif line.startswith("\\\\") or line.startswith("//"):
-                continue
-
             if "->" not in line:
                 is_sakura = False
                 break
-
         if is_sakura:
             return "sakura"
-
         return "unknown"
 
     def get_dict_str(self):
-        """
-        获取字典内容。
-        """
+        """获取完整字典内容。"""
         if self.version == '0.9':
             self.logger.info("您当前选择了Sakura 0.9版本，暂不支持术语表")
             return ""
@@ -186,10 +142,32 @@ class SakuraDict():
                 return ""
         return self.dict_str
 
+    def get_relevant_dict_str(self, text: str) -> str:
+        """提取与 *text* 相关的术语条目，避免全量注入浪费 token。
+
+        Uses lightweight substring matching (including space-stripped variant)
+        — sufficient for a local LLM where keeping the prompt short matters
+        more than fuzzy matching. Falls back to full dict when no entries are
+        stored (e.g. v0.9 or load failure).
+        """
+        if self.version == '0.9':
+            return ""
+        if not self.entries:
+            return self.get_dict_str()
+        relevant: list[str] = []
+        for e in self.entries:
+            src = e["src"]
+            if src in text or src.replace(" ", "") in text:
+                if e["info"]:
+                    relevant.append(f"{src}->{e['dst']} #{e['info']}")
+                else:
+                    relevant.append(f"{src}->{e['dst']}")
+        if relevant:
+            self.logger.info(f"Sakura 术语表: 提取 {len(relevant)}/{len(self.entries)} 条相关术语")
+        return "\n".join(relevant)
+
     def get_dict_from_file(self, dic_path: str):
-        """
-        从文件载入字典。
-        """
+        """从文件载入字典。"""
         dic_type = self.detect_type(dic_path)
         if dic_type == "galtransl":
             self.load_galtransl_dic(dic_path)
@@ -197,7 +175,7 @@ class SakuraDict():
             self.load_sakura_dict(dic_path)
         else:
             self.logger.warning(f"未知的字典类型: {dic_path}")
-        return self.get_dict_str()
+        return self.dict_str
 
 
 class SakuraTranslator(CommonTranslator):
@@ -333,7 +311,7 @@ class SakuraTranslator(CommonTranslator):
         """
         格式化日志输出的提示文本。
         """
-        gpt_dict_raw_text = self.sakura_dict.get_dict_str()
+        gpt_dict_raw_text = self.sakura_dict.get_relevant_dict_str(prompt)
         prompt_009 = '\n'.join([
             'System:',
             self._CHAT_SYSTEM_TEMPLATE_009,
@@ -341,15 +319,24 @@ class SakuraTranslator(CommonTranslator):
             '将下面的日文文本翻译成中文：',
             prompt,
         ])
-        prompt_010 = '\n'.join([
-            'System:',
-            self._CHAT_SYSTEM_TEMPLATE_010,
-            'User:',
-            "根据以下术语表：",
-            gpt_dict_raw_text,
-            "将下面的日文文本根据上述术语表的对应关系和注释翻译成中文：",
-            prompt,
-        ])
+        if gpt_dict_raw_text:
+            prompt_010 = '\n'.join([
+                'System:',
+                self._CHAT_SYSTEM_TEMPLATE_010,
+                'User:',
+                "根据以下术语表：",
+                gpt_dict_raw_text,
+                "将下面的日文文本根据上述术语表的对应关系和注释翻译成中文：",
+                prompt,
+            ])
+        else:
+            prompt_010 = '\n'.join([
+                'System:',
+                self._CHAT_SYSTEM_TEMPLATE_010,
+                'User:',
+                '将下面的日文文本翻译成中文：',
+                prompt,
+            ])
         return prompt_009 if SAKURA_VERSION == '0.9' else prompt_010
 
     def _split_text(self, text: str) -> List[str]:
@@ -532,18 +519,31 @@ class SakuraTranslator(CommonTranslator):
                 }
             ]
         else:
-            gpt_dict_raw_text = self.sakura_dict.get_dict_str()
+            gpt_dict_raw_text = self.sakura_dict.get_relevant_dict_str(raw_text)
             self.logger.debug(f"Sakura Dict: {gpt_dict_raw_text}")
-            messages = [
-                {
-                    "role": "system",
-                    "content": f"{self._CHAT_SYSTEM_TEMPLATE_010}"
-                },
-                {
-                    "role": "user",
-                    "content": f"根据以下术语表：\n{gpt_dict_raw_text}\n将下面的日文文本根据上述术语表的对应关系和注释翻译成中文：{raw_text}"
-                }
-            ]
+            if gpt_dict_raw_text:
+                messages = [
+                    {
+                        "role": "system",
+                        "content": f"{self._CHAT_SYSTEM_TEMPLATE_010}"
+                    },
+                    {
+                        "role": "user",
+                        "content": f"根据以下术语表：\n{gpt_dict_raw_text}\n将下面的日文文本根据上述术语表的对应关系和注释翻译成中文：{raw_text}"
+                    }
+                ]
+            else:
+                # No relevant terms — skip the glossary block entirely
+                messages = [
+                    {
+                        "role": "system",
+                        "content": f"{self._CHAT_SYSTEM_TEMPLATE_010}"
+                    },
+                    {
+                        "role": "user",
+                        "content": f"将下面的日文文本翻译成中文：{raw_text}"
+                    }
+                ]
         response = await self.client.chat.completions.create(
             model="sukinishiro",
             messages=messages,
