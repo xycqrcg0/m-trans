@@ -119,7 +119,7 @@ class OptionItem(BaseModel):
 
 class TranslatorOption(OptionItem):
     requires_key: bool = True
-
+    configured: bool = True
 
 class OptionsResponse(BaseModel):
     languages: list[OptionItem]

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Info, ChevronDown, ChevronUp } from 'lucide-react'
-import {
-  getOptions, listGlossaries,
-  type TaskConfig, type OptionItem, type TranslatorOption, type GlossaryMeta,
-} from '@/lib/api'
+import { Link } from 'react-router-dom'
+import { AlertCircle, ChevronDown, ChevronUp, Info } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
-
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  type GlossaryMeta, type OptionItem, type TaskConfig, type TranslatorOption,
+  getOptions, listGlossaries,
+} from '@/lib/api'
 interface ConfigPanelProps {
   config: Partial<TaskConfig>
   onChange: (c: Partial<TaskConfig>) => void
@@ -18,17 +18,17 @@ const FALLBACK_LANGS: OptionItem[] = [
   { id: 'ENG', name: '英语' }, { id: 'JPN', name: '日语' }, { id: 'KOR', name: '韩语' },
 ]
 const FALLBACK_TRANSLATORS: TranslatorOption[] = [
-  { id: 'google', name: 'Google', requires_key: false },
-  { id: 'youdao', name: 'Youdao', requires_key: true },
-  { id: 'deepl', name: 'DeepL', requires_key: true },
-  { id: 'chatgpt', name: 'ChatGPT', requires_key: true },
-  { id: 'deepseek', name: 'DeepSeek', requires_key: true },
-  { id: 'gemini', name: 'Gemini', requires_key: true },
-  { id: 'groq', name: 'Groq', requires_key: true },
-  { id: 'sakura', name: 'Sakura', requires_key: false },
-  { id: 'custom_openai', name: 'Custom OpenAI', requires_key: true },
-  { id: 'original', name: '原文', requires_key: false },
-  { id: 'none', name: '不翻译', requires_key: false },
+  { id: 'google', name: 'Google', requires_key: false, configured: true },
+  { id: 'youdao', name: 'Youdao', requires_key: true, configured: false },
+  { id: 'deepl', name: 'DeepL', requires_key: true, configured: false },
+  { id: 'chatgpt', name: 'ChatGPT', requires_key: true, configured: false },
+  { id: 'deepseek', name: 'DeepSeek', requires_key: true, configured: false },
+  { id: 'gemini', name: 'Gemini', requires_key: true, configured: false },
+  { id: 'groq', name: 'Groq', requires_key: true, configured: false },
+  { id: 'sakura', name: 'Sakura', requires_key: false, configured: true },
+  { id: 'custom_openai', name: 'Custom OpenAI', requires_key: true, configured: false },
+  { id: 'original', name: '原文', requires_key: false, configured: true },
+  { id: 'none', name: '不翻译', requires_key: false, configured: true },
 ]
 const FALLBACK_DETECTORS: OptionItem[] = [
   { id: 'default', name: 'Default' }, { id: 'ctd', name: 'CTD' },
@@ -66,7 +66,7 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
 
   const isEraseOnly = config.render_translated_text === false
   const isLLMTranslator = !!config.translator && LLM_TRANSLATORS.has(config.translator)
-
+  const selectedTranslator = translators.find((t) => t.id === config.translator)
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -109,9 +109,20 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
               <Select value={config.translator ?? 'google'} onValueChange={(v) => onChange({ ...config, translator: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {translators.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  {translators.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}{t.requires_key && !t.configured ? ' ⚠️' : ''}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {selectedTranslator?.requires_key && !selectedTranslator?.configured && (
+                <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>该翻译引擎需要配置 API Key，</span>
+                  <Link to="/settings" className="underline">去配置</Link>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -410,26 +410,34 @@ async def get_options():
     def item_list(values: dict[str, str]) -> list[OptionItem]:
         return [OptionItem(id=k, name=v) for k, v in values.items()]
 
+    def _is_configured(tid: str) -> bool:
+        if tid in _NO_CONFIG_TRANSLATORS:
+            return True
+        if tid in _TRANSLATOR_ENV_MAP:
+            key_env = _TRANSLATOR_ENV_MAP[tid][0]
+            return bool(os.environ.get(key_env, ""))
+        return True  # unknown translators default to configured
+
     translators = [
-        TranslatorOption(id=Translator.google.value, name="Google (web)", requires_key=False),
-        TranslatorOption(id=Translator.youdao.value, name="Youdao", requires_key=True),
-        TranslatorOption(id=Translator.baidu.value, name="Baidu", requires_key=True),
-        TranslatorOption(id=Translator.deepl.value, name="DeepL", requires_key=True),
-        TranslatorOption(id=Translator.papago.value, name="Papago", requires_key=True),
-        TranslatorOption(id=Translator.caiyun.value, name="Caiyun", requires_key=True),
-        TranslatorOption(id=Translator.chatgpt.value, name="ChatGPT", requires_key=True),
-        TranslatorOption(id=Translator.chatgpt_2stage.value, name="ChatGPT (2-stage)", requires_key=True),
-        TranslatorOption(id=Translator.none.value, name="None", requires_key=False),
-        TranslatorOption(id=Translator.original.value, name="Original", requires_key=False),
-        TranslatorOption(id=Translator.sakura.value, name="Sakura", requires_key=False),
-        TranslatorOption(id=Translator.deepseek.value, name="DeepSeek", requires_key=True),
-        TranslatorOption(id=Translator.groq.value, name="Groq", requires_key=True),
-        TranslatorOption(id=Translator.gemini.value, name="Gemini", requires_key=True),
-        TranslatorOption(id=Translator.gemini_2stage.value, name="Gemini (2-stage)", requires_key=True),
-        TranslatorOption(id=Translator.custom_openai.value, name="Custom OpenAI", requires_key=True),
-        TranslatorOption(id=Translator.sugoi.value, name="Sugoi", requires_key=False),
-        TranslatorOption(id=Translator.jparacrawl.value, name="JParaCrawl", requires_key=False),
-        TranslatorOption(id=Translator.jparacrawl_big.value, name="JParaCrawl (Big)", requires_key=False),
+        TranslatorOption(id=Translator.google.value, name="Google (web)", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.youdao.value, name="Youdao", requires_key=True, configured=_is_configured("youdao")),
+        TranslatorOption(id=Translator.baidu.value, name="Baidu", requires_key=True, configured=_is_configured("baidu")),
+        TranslatorOption(id=Translator.deepl.value, name="DeepL", requires_key=True, configured=_is_configured("deepl")),
+        TranslatorOption(id=Translator.papago.value, name="Papago", requires_key=True, configured=_is_configured("papago")),
+        TranslatorOption(id=Translator.caiyun.value, name="Caiyun", requires_key=True, configured=_is_configured("caiyun")),
+        TranslatorOption(id=Translator.chatgpt.value, name="ChatGPT", requires_key=True, configured=_is_configured("chatgpt")),
+        TranslatorOption(id=Translator.chatgpt_2stage.value, name="ChatGPT (2-stage)", requires_key=True, configured=_is_configured("chatgpt_2stage")),
+        TranslatorOption(id=Translator.none.value, name="None", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.original.value, name="Original", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.sakura.value, name="Sakura", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.deepseek.value, name="DeepSeek", requires_key=True, configured=_is_configured("deepseek")),
+        TranslatorOption(id=Translator.groq.value, name="Groq", requires_key=True, configured=_is_configured("groq")),
+        TranslatorOption(id=Translator.gemini.value, name="Gemini", requires_key=True, configured=_is_configured("gemini")),
+        TranslatorOption(id=Translator.gemini_2stage.value, name="Gemini (2-stage)", requires_key=True, configured=_is_configured("gemini_2stage")),
+        TranslatorOption(id=Translator.custom_openai.value, name="Custom OpenAI", requires_key=True, configured=_is_configured("custom_openai")),
+        TranslatorOption(id=Translator.sugoi.value, name="Sugoi", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.jparacrawl.value, name="JParaCrawl", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.jparacrawl_big.value, name="JParaCrawl (Big)", requires_key=False, configured=True),
     ]
     detectors = [
         OptionItem(id=Detector.ctd.value, name="CTD"),
@@ -511,13 +519,20 @@ async def delete_glossary_entry_api(glossary_id: str, source: str):
 _TRANSLATOR_ENV_MAP = {
     "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE", "DEEPSEEK_MODEL"),
     "chatgpt": ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL"),
+    "chatgpt_2stage": ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL"),
     "gemini": ("GEMINI_API_KEY", "", "GEMINI_MODEL"),
+    "gemini_2stage": ("GEMINI_API_KEY", "", "GEMINI_MODEL"),
     "groq": ("GROQ_API_KEY", "", "GROQ_MODEL"),
     "custom_openai": ("CUSTOM_OPENAI_API_KEY", "CUSTOM_OPENAI_API_BASE", "CUSTOM_OPENAI_MODEL"),
     "youdao": ("YOUDAO_APP_KEY", "", ""),
     "baidu": ("BAIDU_APP_ID", "", ""),
     "deepl": ("DEEPL_AUTH_KEY", "", ""),
+    "caiyun": ("CAIYUN_TOKEN", "", ""),
+    "papago": ("PAPAGO_API_KEY", "", ""),
 }
+
+# Translators that don't need any configuration (cloud-free or local)
+_NO_CONFIG_TRANSLATORS = {"google", "none", "original", "sugoi", "jparacrawl", "jparacrawl_big", "sakura"}
 
 
 @app.get("/api/health", response_model=HealthResponse, summary="健康检查")
@@ -589,6 +604,38 @@ async def save_translator_config(payload: dict):
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     return {"status": "saved", "translator": tid}
 
+
+@app.get("/api/models/status", summary="检查模型下载状态")
+async def get_model_status():
+    """Check whether OCR/detection/inpainting models are downloaded."""
+    from manga_translator.detection import DETECTORS as _DETECTORS
+    from manga_translator.ocr import OCRS as _OCRS
+    from manga_translator.inpainting import INPAINTERS as _INPAINTERS
+    from manga_translator.config import Detector as _Det, Ocr as _Ocr, Inpainter as _Inp
+    from manga_translator.utils.inference import ModelWrapper
+
+    statuses = []
+
+    def _check(category: str, key, registry: dict) -> dict:
+        cls = registry.get(key)
+        if cls is None:
+            return {"category": category, "id": key.value, "downloaded": True}
+        try:
+            obj = cls()
+            if isinstance(obj, ModelWrapper):
+                return {"category": category, "id": key.value, "downloaded": obj.is_downloaded()}
+            return {"category": category, "id": key.value, "downloaded": True}
+        except Exception as e:
+            return {"category": category, "id": key.value, "downloaded": False, "error": str(e)[:200]}
+
+    for det_key in [_Det.default, _Det.ctd]:
+        statuses.append(_check("detector", det_key, _DETECTORS))
+    for ocr_key in [_Ocr.ocr48px, _Ocr.ocr32px, _Ocr.mocr]:
+        statuses.append(_check("ocr", ocr_key, _OCRS))
+    for inp_key in [_Inp.lama_large, _Inp.lama_mpe, _Inp.none]:
+        statuses.append(_check("inpainter", inp_key, _INPAINTERS))
+
+    return {"models": statuses}
 
 @app.get("/api/logs", summary="日志文件列表")
 async def get_logs():
