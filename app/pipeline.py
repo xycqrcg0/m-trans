@@ -196,7 +196,7 @@ async def run_pipeline(
         glossary_already_applied = polish_fn is not None or task_cfg.translator in _GLOSSARY_AWARE_GPT
         if task_cfg.glossary_id and not glossary_already_applied:
             mapping = load_glossary_mapping(task_cfg.glossary_id)
-            if mapping:
+            if mapping and ctx.text_regions:
                 for region in ctx.text_regions:
                     raw = getattr(region, "translation", "") or ""
                     region.translation = apply_glossary(raw, mapping)

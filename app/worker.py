@@ -84,8 +84,15 @@ def delete_task_files(task: Task) -> None:
         except OSError:
             pass
 
-def _make_inline_hook(task_id: str):
-    """Return a coroutine function for progress. Callable from any thread's event loop."""
+def _make_inline_hook(task_id: str, page_idx: int = 0, total_pages: int = 1):
+    """Return a coroutine function for progress. Callable from any thread's event loop.
+
+    When *total_pages* > 1, the stage percentage is mapped into the slice
+    [page_idx/total, (page_idx+1)/total] so the overall progress bar reflects
+    multi-page progress (e.g. "3/5 页 — 翻译中").
+    """
+    page_start = page_idx / total_pages * 100
+    page_span = 100 / total_pages
 
     async def hook(state: str, finished: bool) -> None:
         if task_id in _cancelled:
@@ -96,6 +103,11 @@ def _make_inline_hook(task_id: str):
         if pct is None:
             return
 
+        # Scale the stage percentage into this page's slice
+        scaled_pct = int(page_start + pct * page_span / 100)
+        if total_pages > 1:
+            msg = f"{page_idx + 1}/{total_pages} 页 — {msg}"
+
         task = task_store.get(task_id)
         if task is not None and status is not None:
             task.status = status
@@ -104,7 +116,7 @@ def _make_inline_hook(task_id: str):
         if q is not None:
             ev = ProgressEvent(
                 state=status.value if status else state,
-                progress_pct=pct,
+                progress_pct=scaled_pct,
                 message_cn=msg,
                 done=finished,
             )
@@ -160,6 +172,7 @@ def _execute_task_blocking(task: Task) -> None:
         result_dir.mkdir(parents=True, exist_ok=True)
 
         interactive = task.config.interactive_edit
+        total_pages = len(task.pages)
 
         for page_idx, page in enumerate(task.pages):
             image = Image.open(page.upload_path).convert("RGB")
@@ -168,7 +181,7 @@ def _execute_task_blocking(task: Task) -> None:
                 return await run_pipeline(
                     image=image,
                     task_cfg=task.config,
-                    on_progress=_make_inline_hook(task.id),
+                    on_progress=_make_inline_hook(task.id, page_idx, total_pages),
                     stop_before_render=interactive,
                 )
 
