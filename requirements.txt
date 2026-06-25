@@ -1,4 +1,5 @@
 networkx
+pydensecrf @ git+https://github.com/lucasb-eyer/pydensecrf.git
 torch
 groq
 torchvision

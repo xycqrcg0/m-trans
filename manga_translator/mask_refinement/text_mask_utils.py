@@ -153,29 +153,6 @@ def _color_based_refine(rgbimg: np.ndarray, rawmask: np.ndarray) -> np.ndarray:
 
     mask[y1:y2, x1:x2] = new_mask
     return mask
-    if len(rawmask.shape) == 2:
-        rawmask = rawmask[:, :, None]
-    mask_softmax = np.concatenate([cv2.bitwise_not(rawmask)[:, :, None], rawmask], axis=2)
-    mask_softmax = mask_softmax.astype(np.float32) / 255.0
-    n_classes = 2
-    feat_first = mask_softmax.transpose((2, 0, 1)).reshape((n_classes,-1))
-    unary = unary_from_softmax(feat_first)
-    unary = np.ascontiguousarray(unary)
-
-    d = dcrf.DenseCRF2D(rgbimg.shape[1], rgbimg.shape[0], n_classes)
-
-    d.setUnaryEnergy(unary)
-    d.addPairwiseGaussian(sxy=1, compat=3, kernel=dcrf.DIAG_KERNEL,
-                            normalization=dcrf.NO_NORMALIZATION)
-
-    d.addPairwiseBilateral(sxy=23, srgb=7, rgbim=rgbimg,
-                        compat=20,
-                        kernel=dcrf.DIAG_KERNEL,
-                        normalization=dcrf.NO_NORMALIZATION)
-    Q = d.inference(5)
-    res = np.argmax(Q, axis=0).reshape((rgbimg.shape[0], rgbimg.shape[1]))
-    crf_mask = np.array(res * 255, dtype=np.uint8)
-    return crf_mask
 
 def complete_mask(img: np.ndarray, mask: np.ndarray, textlines: List[Quadrilateral], keep_threshold = 1e-2, dilation_offset = 0,kernel_size=3):
     bboxes = [txtln.aabb.xywh for txtln in textlines]
