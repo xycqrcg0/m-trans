@@ -469,6 +469,11 @@ class MangaTranslator:
             else:
                 ctx.img_inpainted = ctx.img_rgb
         ctx.gimp_mask = np.dstack((cv2.cvtColor(ctx.img_inpainted, cv2.COLOR_RGB2BGR), ctx.mask))
+        # Save a copy of the inpainted image before rendering modifies it in-place.
+        # Rendering (dispatch_rendering) writes text directly onto the numpy array,
+        # so ctx.img_inpainted would be overwritten. This copy preserves the
+        # text-erased-only image for downstream consumers (worker saves both).
+        ctx.img_inpainted_pre_render = ctx.img_inpainted.copy()
 
         if self.verbose:
             try:

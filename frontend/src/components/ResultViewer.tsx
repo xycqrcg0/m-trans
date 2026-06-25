@@ -14,7 +14,7 @@ export function ResultViewer({ originalUrl, resultUrl, textBlocks }: ResultViewe
         <ReactCompareSlider
           itemOne={<ReactCompareSliderImage src={originalUrl} alt="原图" />}
           itemTwo={<ReactCompareSliderImage src={resultUrl} alt="译图" />}
-          style={{ maxHeight: 600 }}
+        style={{ maxHeight: '70vh' }}
         />
         <div className="flex justify-between bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
           <span>← 擦字图</span>

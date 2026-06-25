@@ -27,13 +27,10 @@ from manga_translator.utils import Context
 
 ProgressHook = Callable[[str, bool], Awaitable[None]]
 
-# Single shared translator — model weights are cached internally by the engine.
-# Concurrency safety is ensured by a pipeline lock (see run_pipeline).
 _translator: Optional[MangaTranslator] = None
 _translator_lock = asyncio.Lock()
 _pipeline_lock = asyncio.Lock()
 
-# Built-in dict files shipped with m-trans
 _DICT_DIR = Path(__file__).resolve().parent.parent / "dict"
 _PRE_DICT = _DICT_DIR / "pre_dict.txt"
 _POST_DICT = _DICT_DIR / "post_dict.txt"
@@ -63,7 +60,6 @@ def _pick_enum(enum_cls, value: str, default):
 
 
 def _export_glossary_for_gpt(task_cfg: TaskConfig) -> Optional[str]:
-    """Export JSON glossary to MIT-format txt for GPT translators."""
     if not task_cfg.glossary_id:
         return None
     mapping = load_glossary_mapping(task_cfg.glossary_id)
@@ -102,11 +98,6 @@ def _build_config(task_cfg: TaskConfig) -> Config:
 
 
 def _make_polish_fn(task_cfg: TaskConfig):
-    """Create polish callback. Only activates when polish=true.
-
-    Glossary is applied here for non-GPT translators (Google, Youdao, etc.).
-    For GPT translators, glossary is injected via system message instead.
-    """
     if not task_cfg.polish:
         return None
 
@@ -132,23 +123,14 @@ async def run_pipeline(
     task_cfg: TaskConfig,
     on_progress: Optional[ProgressHook] = None,
 ) -> Context:
-    # ── Concurrency safety: serialize pipeline execution ──
-    # The shared MangaTranslator instance has mutable state (progress hooks,
-    # polish_fn, context_size). Concurrent calls would corrupt these.
-    # The pipeline lock ensures only one task uses the translator at a time.
-    # Model weights remain cached — the lock only serializes inference, not loading.
     async with _pipeline_lock:
         translator = await get_translator()
         config = _build_config(task_cfg)
 
-        # ── Layer 3: Cross-page context ──
         translator.context_size = task_cfg.context_size
 
         polish_fn = _make_polish_fn(task_cfg)
 
-        # ── Layer 2: Glossary injection for GPT translators ──
-        # GPT translators read OPENAI_GLOSSARY_PATH. Since we hold the pipeline
-        # lock, no other task can overwrite this value during our execution.
         old_glossary_path = os.environ.get("OPENAI_GLOSSARY_PATH")
         try:
             if task_cfg.translator in _GPT_TRANSLATORS and task_cfg.glossary_id:
@@ -165,17 +147,14 @@ async def run_pipeline(
 
             ctx = await translator.translate(image, config)
         finally:
-            # Clean up shared state
             if polish_fn:
                 translator.set_polish_fn(None)
             if on_progress:
                 translator._progress_hooks = [
                     ph for ph in translator._progress_hooks if ph is not on_progress
                 ]
-                # Re-add logger hook if it was removed
                 if not translator._progress_hooks:
                     translator._add_logger_hook()
-            # Restore glossary path
             if old_glossary_path is not None:
                 os.environ["OPENAI_GLOSSARY_PATH"] = old_glossary_path
             else:
