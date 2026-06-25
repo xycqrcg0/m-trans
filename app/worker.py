@@ -13,6 +13,7 @@ from PIL import Image
 
 from app.models import Page, ProgressEvent, Task, TaskStatus, TextBlockResult
 from app.pipeline import render_pipeline, run_pipeline, warmup
+from config.settings import settings
 logger = logging.getLogger("worker")
 
 
