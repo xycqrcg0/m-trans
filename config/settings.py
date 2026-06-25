@@ -30,10 +30,12 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     groq_api_key: str = ""
 
-    # storage
+    # storage — all under storage/, organized by task ID
     upload_dir: Path = BASE_DIR / "storage" / "uploads"
     result_dir: Path = BASE_DIR / "storage" / "results"
     task_dir: Path = BASE_DIR / "storage" / "tasks"
+    # manga_translator library debug/intermediate output (verbose mode)
+    mt_result_dir: Path = BASE_DIR / "storage" / "mt_debug"
     glossary_dir: Path = BASE_DIR / "glossaries"
 
     # service
@@ -41,7 +43,7 @@ class Settings(BaseSettings):
     port: int = 8000
 
     def ensure_dirs(self) -> None:
-        for d in (self.upload_dir, self.result_dir, self.task_dir, self.glossary_dir):
+        for d in (self.upload_dir, self.result_dir, self.task_dir, self.mt_result_dir, self.glossary_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

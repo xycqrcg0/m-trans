@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import logging
 import pickle
+import shutil
 from pathlib import Path
 from queue import Queue
 from typing import Optional
@@ -66,23 +67,54 @@ def load_all_tasks() -> list[Task]:
 
 
 def delete_task_files(task: Task) -> None:
+    """Delete all files associated with a task: uploads, results, task json,
+    ctx pickles, and any glossary exports."""
+    # Task metadata
     (settings.task_dir / f"{task.id}.json").unlink(missing_ok=True)
+
+    # Upload and result directories (organized by task ID)
+    upload_dir = settings.upload_dir / task.id
     result_dir = settings.result_dir / task.id
-    for page in task.pages:
-        Path(page.upload_path).unlink(missing_ok=True)
-        if page.result_path:
-            Path(page.result_path).unlink(missing_ok=True)
-        if page.inpainted_path:
-            Path(page.inpainted_path).unlink(missing_ok=True)
-    # Clean up interactive-edit ctx pickles
+    for d in (upload_dir, result_dir):
+        if d.exists():
+            shutil.rmtree(d, ignore_errors=True)
+
+    # Glossary export temp files
+    if task.config and task.config.glossary_id:
+        gpt_export = settings.glossary_dir / f"{task.config.glossary_id}_gpt.txt"
+        gpt_export.unlink(missing_ok=True)
+
+
+def cleanup_task_temp_files(task: Task) -> None:
+    """Remove intermediate files after a task completes successfully.
+
+    Keeps result images and inpainted previews; removes:
+    - ctx pickles (only needed for interactive edit, cleaned after render)
+    - glossary GPT export temp files
+    """
+    result_dir = settings.result_dir / task.id
     if result_dir.exists():
         for ctx_file in result_dir.glob("*_ctx.pkl"):
             ctx_file.unlink(missing_ok=True)
-    for subdir in (settings.upload_dir / task.id, result_dir):
-        try:
-            subdir.rmdir()
-        except OSError:
-            pass
+    if task.config and task.config.glossary_id:
+        gpt_export = settings.glossary_dir / f"{task.config.glossary_id}_gpt.txt"
+        gpt_export.unlink(missing_ok=True)
+
+
+def cleanup_orphaned_files() -> None:
+    """Remove orphaned files on startup: temp files whose tasks no longer exist.
+
+    - Old manga_translator result/ directory (library artifact)
+    - Orphaned _gpt.txt exports in glossary dir
+    """
+    # Clean up old manga_translator result/ directory if it exists at project root
+    mt_result = settings.BASE_DIR / "result"
+    if mt_result.exists() and mt_result != settings.mt_result_dir:
+        shutil.rmtree(mt_result, ignore_errors=True)
+
+    # Clean up orphaned _gpt.txt exports (shouldn't persist between runs)
+    for f in settings.glossary_dir.glob("*_gpt.txt"):
+        f.unlink(missing_ok=True)
 
 def _make_inline_hook(task_id: str, page_idx: int = 0, total_pages: int = 1):
     """Return a coroutine function for progress. Callable from any thread's event loop.
@@ -240,6 +272,7 @@ def _execute_task_blocking(task: Task) -> None:
                 q.put_nowait(ev)
         else:
             _persist(TaskStatus.done)
+            cleanup_task_temp_files(task)
     except TaskCancelled:
         logger.info("Task %s cancelled", task.id)
         task.error = "任务已取消"
@@ -315,6 +348,7 @@ def render_edited_task(task: Task, edited_texts: dict[int, list[str]]) -> None:
             _persist(task.status)
 
         _persist(TaskStatus.done)
+        cleanup_task_temp_files(task)
     except Exception as exc:
         logger.exception("Task %s render failed", task.id)
         task.error = str(exc)
@@ -369,6 +403,7 @@ async def enqueue_task(task: Task) -> None:
 async def startup() -> None:
     global _runner_task
     await warmup()
+    cleanup_orphaned_files()
     for task in load_all_tasks():
         task_store[task.id] = task
     if _runner_task is None or _runner_task.done():

@@ -43,6 +43,12 @@ async def get_translator() -> MangaTranslator:
     global _translator
     async with _translator_lock:
         if _translator is None:
+            # Redirect the library's intermediate result output away from
+            # the project root into our storage area.
+            import manga_translator.utils.generic as _generic
+            _generic.BASE_PATH = str(settings.BASE_DIR / "storage" / "mt_debug")
+            (settings.BASE_DIR / "storage" / "mt_debug").mkdir(parents=True, exist_ok=True)
+
             _translator = MangaTranslator(
                 {
                     "use_gpu": settings.use_gpu,
