@@ -107,9 +107,10 @@ def cleanup_orphaned_files() -> None:
     - Old manga_translator result/ directory (library artifact)
     - Orphaned _gpt.txt exports in glossary dir
     """
-    # Clean up old manga_translator result/ directory if it exists at project root
-    mt_result = settings.BASE_DIR / "result"
-    if mt_result.exists() and mt_result != settings.mt_result_dir:
+    # Clean up old manga_translator result/ directory at project root
+    from config.settings import BASE_DIR
+    mt_result = BASE_DIR / "result"
+    if mt_result.exists():
         shutil.rmtree(mt_result, ignore_errors=True)
 
     # Clean up orphaned _gpt.txt exports (shouldn't persist between runs)
