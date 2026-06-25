@@ -7,6 +7,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 
+from app.logging_config import setup_logging, cleanup_old_logs, list_log_files, read_log_file, delete_log_file
+
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -47,8 +50,8 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     set_glossary_dir(settings.glossary_dir)
+    cleanup_old_logs()
     # Always recreate the built-in default so new entries ship on upgrade.
-    # User-created glossaries are never touched.
     create_default_glossary()
     await worker.startup()
     yield
@@ -585,3 +588,23 @@ async def save_translator_config(payload: dict):
 
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     return {"status": "saved", "translator": tid}
+
+
+@app.get("/api/logs", summary="日志文件列表")
+async def get_logs():
+    return {"files": list_log_files()}
+
+
+@app.get("/api/logs/{filename}", summary="读取日志内容")
+async def get_log_content(filename: str, tail: int = 500):
+    content = read_log_file(filename, tail)
+    if content is None and not (settings.log_dir / filename).exists():
+        raise HTTPException(status_code=404, detail="日志文件不存在")
+    return {"filename": filename, "content": content, "tail": tail}
+
+
+@app.delete("/api/logs/{filename}", summary="删除日志文件")
+async def delete_log(filename: str):
+    if not delete_log_file(filename):
+        raise HTTPException(status_code=404, detail="日志文件不存在或无法删除")
+    return {"deleted": filename}

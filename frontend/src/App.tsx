@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { Upload, ListTodo, BookOpen, Settings as SettingsIcon } from 'lucide-react'
+import { Upload, ListTodo, BookOpen, Settings as SettingsIcon, ScrollText } from 'lucide-react'
 import Home from '@/pages/Home'
 import Tasks from '@/pages/Tasks'
 import TaskDetail from '@/pages/TaskDetail'
 import Glossaries from '@/pages/Glossaries'
+import Logs from '@/pages/Logs'
 import Gallery from '@/pages/Gallery'
 import Settings from '@/pages/Settings'
 function Nav() {
@@ -11,6 +12,7 @@ function Nav() {
     { to: '/', icon: Upload, label: '上传', end: true },
     { to: '/tasks', icon: ListTodo, label: '任务', end: false },
     { to: '/glossaries', icon: BookOpen, label: '术语库', end: false },
+    { to: '/logs', icon: ScrollText, label: '日志', end: false },
     { to: '/settings', icon: SettingsIcon, label: '配置', end: false },
   ]
   return (
@@ -50,6 +52,7 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/glossaries" element={<Glossaries />} />
+            <Route path="/logs" element={<Logs />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>

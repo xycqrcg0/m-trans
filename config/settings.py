@@ -36,14 +36,16 @@ class Settings(BaseSettings):
     task_dir: Path = BASE_DIR / "storage" / "tasks"
     # manga_translator library debug/intermediate output (verbose mode)
     mt_result_dir: Path = BASE_DIR / "storage" / "mt_debug"
-    glossary_dir: Path = BASE_DIR / "glossaries"
+    # application logs
+    log_dir: Path = BASE_DIR / "storage" / "logs"
+    log_retention_days: int = 7
 
     # service
     host: str = "0.0.0.0"
     port: int = 8000
 
     def ensure_dirs(self) -> None:
-        for d in (self.upload_dir, self.result_dir, self.task_dir, self.mt_result_dir, self.glossary_dir):
+        for d in (self.upload_dir, self.result_dir, self.task_dir, self.mt_result_dir, self.log_dir, self.glossary_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 
