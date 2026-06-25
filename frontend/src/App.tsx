@@ -3,6 +3,7 @@ import { Upload, ListTodo, BookOpen, Settings as SettingsIcon } from 'lucide-rea
 import Home from '@/pages/Home'
 import Tasks from '@/pages/Tasks'
 import TaskDetail from '@/pages/TaskDetail'
+import Glossaries from '@/pages/Glossaries'
 import Gallery from '@/pages/Gallery'
 import Settings from '@/pages/Settings'
 function Nav() {
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
+            <Route path="/glossaries" element={<Glossaries />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
