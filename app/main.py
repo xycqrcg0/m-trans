@@ -67,12 +67,17 @@ app.add_middleware(
 import zipfile as _zipfile
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
-_ARCHIVE_EXTS = {".cbz", ".cbr", ".zip", ".rar", ".7z"}
+_ARCHIVE_EXTS = {".cbz", ".zip", ".7z", ".cbr", ".rar"}
+_RAR_EXTS = {".cbr", ".rar"}
 
 
 def _extract_images_from_archive(content: bytes, filename: str) -> list[tuple[str, bytes]]:
-    """Extract image files from a comic archive (.cbz/.cbr/.zip/.rar).
-    Returns list of (arcname, image_bytes) sorted by filename.
+    """Extract image files from a comic archive.
+
+    Supports .cbz/.zip (stdlib), .7z (py7zr), and .cbr/.rar (best-effort
+    via rarfile if unrar is installed).  No hard dependency on unrar — if
+    it's missing the user gets a clear message asking them to convert to
+    .cbz, which works without any system tools.
     """
     ext = Path(filename).suffix.lower()
     images: list[tuple[str, bytes]] = []
@@ -89,7 +94,16 @@ def _extract_images_from_archive(content: bytes, filename: str) -> list[tuple[st
             for name in names:
                 images.append((name, zf.read(name)))
 
-    elif ext in (".cbr", ".rar"):
+    elif ext == ".7z":
+        import io as _io
+        import py7zr
+        with py7zr.SevenZipFile(_io.BytesIO(content), mode="r") as sz:
+            for name, bio in sz.readall().items():
+                if Path(name).suffix.lower() in _IMAGE_EXTS:
+                    images.append((name, bio.read()))
+        images.sort(key=lambda x: x[0])
+
+    elif ext in _RAR_EXTS:
         try:
             import rarfile
             import io
@@ -102,25 +116,15 @@ def _extract_images_from_archive(content: bytes, filename: str) -> list[tuple[st
                 )
                 for name in names:
                     images.append((name, rf.read(name)))
-        except rarfile.RarCannotExec:
-            raise HTTPException(
-                status_code=400,
-                detail="解压 .cbr/.rar 需要系统安装 unrar 或 unar 命令行工具",
-            )
-
-    elif ext == ".7z":
-        try:
-            import py7zr
-            import io
-            with py7zr.SevenZipFile(io.BytesIO(content), mode="r") as sz:
-                for name, bio in sz.readall().items():
-                    if Path(name).suffix.lower() in _IMAGE_EXTS:
-                        images.append((name, bio.read()))
-            images.sort(key=lambda x: x[0])
         except ImportError:
             raise HTTPException(
                 status_code=400,
-                detail="解压 .7z 需要 py7zr 库",
+                detail=".cbr/.rar 需要额外依赖。请将文件转换为 .cbz（重命名 .cbr 为 .zip 并解压后重新打包为 .cbz），或安装 unrar 命令行工具。",
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="无法解压 .cbr/.rar 文件。请将其转换为 .cbz 格式后重新上传。",
             )
 
     return images

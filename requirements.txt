@@ -1,6 +1,5 @@
 networkx
-rarfile
-py7zr
+rarfile  # optional: only needed for .cbr/.rar upload; .cbz/.zip/.7z work without it
 torch
 groq
 torchvision
