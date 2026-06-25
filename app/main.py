@@ -134,11 +134,19 @@ async def task_progress(task_id: str):
         return StreamingResponse(_done_stream(), media_type="text/event-stream")
 
     q = worker.progress_queues.get(task_id)
-    if not q:
-        raise HTTPException(status_code=404, detail="进度队列不存在")
+    last = worker.last_progress.get(task_id)
 
     async def _event_stream():
         loop = asyncio.get_running_loop()
+        # Replay the last known progress so reconnects don't show 0%.
+        if last is not None:
+            yield f"data: {last.model_dump_json()}\n\n"
+            if last.done:
+                return
+        if q is None:
+            # Task isn't terminal but has no live queue (e.g. server restarted
+            # mid-flight): emit its current persisted status and stop.
+            return
         while True:
             event = await loop.run_in_executor(None, q.get)
             yield f"data: {event.model_dump_json()}\n\n"
@@ -190,6 +198,7 @@ async def delete_task(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     worker.progress_queues.pop(task_id, None)
+    worker.last_progress.pop(task_id, None)
     worker.delete_task_files(task)
     return {"deleted": task_id}
 

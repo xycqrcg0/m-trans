@@ -20,6 +20,7 @@ _EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 task_store: dict[str, Task] = {}
 progress_queues: dict[str, Queue] = {}
+last_progress: dict[str, "ProgressEvent"] = {}
 _task_queue: Queue[Task] = Queue()
 _runner_task: Optional[asyncio.Task] = None
 
@@ -88,17 +89,16 @@ def _make_inline_hook(task_id: str):
         if task is not None and status is not None:
             task.status = status
             save_task(task)
-
         q = progress_queues.get(task_id)
         if q is not None:
-            q.put_nowait(
-                ProgressEvent(
-                    state=status.value if status else state,
-                    progress_pct=pct,
-                    message_cn=msg,
-                    done=finished,
-                )
+            ev = ProgressEvent(
+                state=status.value if status else state,
+                progress_pct=pct,
+                message_cn=msg,
+                done=finished,
             )
+            last_progress[task_id] = ev
+            q.put_nowait(ev)
 
     return hook
 
@@ -155,7 +155,9 @@ def _execute_task_blocking(task: Task) -> None:
             inpainted_path = result_dir / f"page_{page_idx:04d}_inpainted.png"
 
             # Save inpainted (text-erased only, before rendering wrote text on it)
-            inpainted_data = ctx.get("img_inpainted_pre_render") or ctx.get("img_inpainted")
+            inpainted_data = ctx.get("img_inpainted_pre_render")
+            if inpainted_data is None:
+                inpainted_data = ctx.get("img_inpainted")
             if inpainted_data is not None:
                 Image.fromarray(inpainted_data).save(inpainted_path)
             # Save result (final with rendered text)
@@ -180,14 +182,14 @@ def _execute_task_blocking(task: Task) -> None:
     finally:
         q = progress_queues.get(task.id)
         if q is not None:
-            q.put_nowait(
-                ProgressEvent(
-                    state=task.status.value,
-                    progress_pct=100 if task.status == TaskStatus.done else 0,
-                    message_cn="完成" if task.status == TaskStatus.done else f"失败：{task.error}",
-                    done=True,
-                )
+            ev = ProgressEvent(
+                state=task.status.value,
+                progress_pct=100 if task.status == TaskStatus.done else 0,
+                message_cn="完成" if task.status == TaskStatus.done else f"失败：{task.error}",
+                done=True,
             )
+            last_progress[task.id] = ev
+            q.put_nowait(ev)
 
 
 async def task_runner() -> None:
