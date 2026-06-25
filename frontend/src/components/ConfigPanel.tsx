@@ -19,8 +19,16 @@ const FALLBACK_LANGS: OptionItem[] = [
 ]
 const FALLBACK_TRANSLATORS: TranslatorOption[] = [
   { id: 'google', name: 'Google', requires_key: false },
+  { id: 'youdao', name: 'Youdao', requires_key: true },
+  { id: 'deepl', name: 'DeepL', requires_key: true },
+  { id: 'chatgpt', name: 'ChatGPT', requires_key: true },
   { id: 'deepseek', name: 'DeepSeek', requires_key: true },
+  { id: 'gemini', name: 'Gemini', requires_key: true },
+  { id: 'groq', name: 'Groq', requires_key: true },
+  { id: 'sakura', name: 'Sakura', requires_key: false },
+  { id: 'custom_openai', name: 'Custom OpenAI', requires_key: true },
   { id: 'original', name: '原文', requires_key: false },
+  { id: 'none', name: '不翻译', requires_key: false },
 ]
 const FALLBACK_DETECTORS: OptionItem[] = [
   { id: 'default', name: 'Default' }, { id: 'ctd', name: 'CTD' },
