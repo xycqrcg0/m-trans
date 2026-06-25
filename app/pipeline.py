@@ -10,7 +10,7 @@ from PIL import Image
 
 from app.models import TaskConfig
 from config.settings import settings
-from manga_translator import MangaTranslator, load_glossary_mapping, polish_translations, set_glossary_dir
+from manga_translator import MangaTranslator, apply_glossary, load_glossary_mapping, polish_translations, set_glossary_dir
 from manga_translator.config import (
     Config,
     Detector,
@@ -146,11 +146,13 @@ async def run_pipeline(
         polish_fn = _make_polish_fn(task_cfg)
 
         old_glossary_path = os.environ.get("OPENAI_GLOSSARY_PATH")
+        old_sakura_dict_path = os.environ.get("SAKURA_DICT_PATH")
         try:
             if task_cfg.translator in _GPT_TRANSLATORS and task_cfg.glossary_id:
                 gpt_path = _export_glossary_for_gpt(task_cfg)
                 if gpt_path:
                     os.environ["OPENAI_GLOSSARY_PATH"] = gpt_path
+                    os.environ["SAKURA_DICT_PATH"] = gpt_path
             else:
                 os.environ["OPENAI_GLOSSARY_PATH"] = str(_DICT_DIR / "mit_glossary.txt")
 
@@ -173,6 +175,28 @@ async def run_pipeline(
                 os.environ["OPENAI_GLOSSARY_PATH"] = old_glossary_path
             else:
                 os.environ.pop("OPENAI_GLOSSARY_PATH", None)
+            if old_sakura_dict_path is not None:
+                os.environ["SAKURA_DICT_PATH"] = old_sakura_dict_path
+            else:
+                os.environ.pop("SAKURA_DICT_PATH", None)
+
+        # Fallback glossary application: if the user selected a glossary but
+        # it wasn't applied during translation, apply it now.
+        # - chatgpt/sakura read OPENAI_GLOSSARY_PATH/SAKURA_DICT_PATH during
+        #   translation (fixed above to read the env var live), so they're
+        #   covered and must NOT get a second pass here.
+        # - deepseek/gemini/groq/custom_openai and all non-LLM translators
+        #   never load the glossary, so apply it as a post-translation step.
+        # - When polish ran, it already applied the glossary internally.
+        _GLOSSARY_AWARE_GPT = {"chatgpt", "chatgpt_2stage", "sakura"}
+        glossary_already_applied = polish_fn is not None or task_cfg.translator in _GLOSSARY_AWARE_GPT
+        if task_cfg.glossary_id and not glossary_already_applied:
+            mapping = load_glossary_mapping(task_cfg.glossary_id)
+            if mapping:
+                for region in ctx.text_regions:
+                    raw = getattr(region, "translation", "") or ""
+                    region.translation = apply_glossary(raw, mapping)
+                logger.info("Applied glossary (%d terms) post-translation", len(mapping))
 
     return ctx
 

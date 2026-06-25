@@ -234,13 +234,16 @@ class SakuraTranslator(CommonTranslator):
         self._current_style = "precise"
         self._emoji_pattern = re.compile(r'[\U00010000-\U0010ffff]')
         self._heart_pattern = re.compile(r'❤')
-        self.sakura_dict = SakuraDict(self.get_dict_path(), self.logger, SAKURA_VERSION)
+        # Read SAKURA_DICT_PATH live from env (pipeline.py may set it per-task
+        # at runtime); the module-level import is a stale snapshot.
+        dict_path = os.getenv('SAKURA_DICT_PATH', SAKURA_DICT_PATH)
+        self.sakura_dict = SakuraDict(dict_path, self.logger, SAKURA_VERSION)
 
     def get_sakura_version(self):
         return SAKURA_VERSION
 
     def get_dict_path(self):
-        return SAKURA_DICT_PATH
+        return os.getenv('SAKURA_DICT_PATH', SAKURA_DICT_PATH)
 
     def detect_and_caculate_repeats(self, s: str, threshold: int = _REPEAT_DETECT_THRESHOLD, remove_all=True) -> Tuple[bool, str, int, str]:
         """

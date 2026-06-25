@@ -57,13 +57,15 @@ class OpenAITranslator(ConfigGPT, CommonTranslator):
         self.token_count_last = 0
         self._last_request_ts = 0
         
-        # 初始化术语表相关属性
-        self.dict_path = OPENAI_GLOSSARY_PATH
+        # 初始化术语表相关属性 — read the env var live (pipeline.py sets it per-task
+        # at runtime); the module-level OPENAI_GLOSSARY_PATH constant is a stale
+        # import-time snapshot and must not be used here.
+        self.dict_path = os.getenv('OPENAI_GLOSSARY_PATH', OPENAI_GLOSSARY_PATH)
         self.glossary_entries = {}
-        
+
         # 检查用户是否明确设置了glossary环境变量
         user_set_glossary = os.getenv('OPENAI_GLOSSARY_PATH') is not None
-        
+
         if os.path.exists(self.dict_path):
             self.glossary_entries = self.load_glossary(self.dict_path)
         elif user_set_glossary:
