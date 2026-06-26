@@ -45,7 +45,7 @@ export default function TaskDetail() {
           </p>
         </div>
 
-        {/* Inpainted image preview */}
+        {/* Page navigation */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-3">
             <button
@@ -66,11 +66,7 @@ export default function TaskDetail() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <img src={inpaintedUrl} alt="擦字预览" className="w-full" />
-        </div>
-
-        <TranslationEditor taskId={task.id} onCompleted={refresh} />
+        <TranslationEditor taskId={task.id} imageUrl={inpaintedUrl} onCompleted={refresh} />
       </div>
     )
   }

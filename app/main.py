@@ -339,8 +339,8 @@ async def get_editable_blocks(task_id: str):
                         "original_text": b.original_text,
                         "translated_text": b.translated_text,
                         "polished_text": b.polished_text,
+                        "xyxy": b.xyxy,
                         "center": b.center,
-                        "size": b.size,
                     }
                     for j, b in enumerate(pg.text_blocks)
                 ],
