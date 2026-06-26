@@ -91,13 +91,19 @@ class CreateTaskResponse(BaseModel):
     page_count: int = 1
 
 
+class ConfigField(BaseModel):
+    env_var: str
+    label: str
+    field_type: str = "text"  # text, password
+    required: bool = True
+    value: str = ""  # masked value from env
+
+
 class TranslatorConfigItem(BaseModel):
     translator: str
-    api_key: str = ""
-    api_base: str = ""
-    model: str = ""
+    display_name: str = ""
+    fields: list[ConfigField] = []
     configured: bool = False
-
 
 class HealthResponse(BaseModel):
     status: str = "ok"

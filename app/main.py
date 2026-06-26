@@ -521,23 +521,69 @@ async def delete_glossary_entry_api(glossary_id: str, source: str):
 
 # ── Translator configuration ──
 
-# In-memory store for translator configs (persisted to .env)
-_TRANSLATOR_ENV_MAP = {
-    "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_API_BASE", "DEEPSEEK_MODEL"),
-    "chatgpt": ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL"),
-    "chatgpt_2stage": ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL"),
-    "gemini": ("GEMINI_API_KEY", "", "GEMINI_MODEL"),
-    "gemini_2stage": ("GEMINI_API_KEY", "", "GEMINI_MODEL"),
-    "groq": ("GROQ_API_KEY", "", "GROQ_MODEL"),
-    "custom_openai": ("CUSTOM_OPENAI_API_KEY", "CUSTOM_OPENAI_API_BASE", "CUSTOM_OPENAI_MODEL"),
-    "youdao": ("YOUDAO_APP_KEY", "", ""),
-    "baidu": ("BAIDU_APP_ID", "", ""),
-    "deepl": ("DEEPL_AUTH_KEY", "", ""),
-    "caiyun": ("CAIYUN_TOKEN", "", ""),
-    "papago": ("PAPAGO_API_KEY", "", ""),
+# Metadata: what fields each translator needs for configuration.
+# Each entry: (display_name, [(env_var, field_label, field_type, required), ...])
+_TRANSLATOR_CONFIG_META: dict[str, tuple[str, list[tuple[str, str, str, bool]]]] = {
+    "deepseek": ("DeepSeek", [
+        ("DEEPSEEK_API_KEY", "API Key", "password", True),
+        ("DEEPSEEK_API_BASE", "API Base URL", "text", False),
+        ("DEEPSEEK_MODEL", "模型名称", "text", False),
+    ]),
+    "chatgpt": ("ChatGPT (OpenAI)", [
+        ("OPENAI_API_KEY", "API Key", "password", True),
+        ("OPENAI_API_BASE", "API Base URL", "text", False),
+        ("OPENAI_MODEL", "模型名称", "text", False),
+    ]),
+    "chatgpt_2stage": ("ChatGPT 2-stage (OpenAI)", [
+        ("OPENAI_API_KEY", "API Key", "password", True),
+        ("OPENAI_API_BASE", "API Base URL", "text", False),
+        ("OPENAI_MODEL", "模型名称", "text", False),
+    ]),
+    "gemini": ("Gemini", [
+        ("GEMINI_API_KEY", "API Key", "password", True),
+        ("GEMINI_MODEL", "模型名称", "text", False),
+    ]),
+    "gemini_2stage": ("Gemini 2-stage", [
+        ("GEMINI_API_KEY", "API Key", "password", True),
+        ("GEMINI_MODEL", "模型名称", "text", False),
+    ]),
+    "groq": ("Groq", [
+        ("GROQ_API_KEY", "API Key", "password", True),
+        ("GROQ_MODEL", "模型名称", "text", False),
+    ]),
+    "custom_openai": ("Custom OpenAI (Ollama etc.)", [
+        ("CUSTOM_OPENAI_API_KEY", "API Key", "password", False),
+        ("CUSTOM_OPENAI_API_BASE", "API Base URL", "text", True),
+        ("CUSTOM_OPENAI_MODEL", "模型名称", "text", False),
+    ]),
+    "youdao": ("有道翻译", [
+        ("YOUDAO_APP_KEY", "应用 ID", "text", True),
+        ("YOUDAO_SECRET_KEY", "应用密钥", "password", True),
+    ]),
+    "baidu": ("百度翻译", [
+        ("BAIDU_APP_ID", "APP ID", "text", True),
+        ("BAIDU_SECRET_KEY", "密钥", "password", True),
+    ]),
+    "deepl": ("DeepL", [
+        ("DEEPL_AUTH_KEY", "Auth Key", "password", True),
+    ]),
+    "caiyun": ("彩云小译", [
+        ("CAIYUN_TOKEN", "访问令牌", "password", True),
+    ]),
+    "papago": ("Papago", [
+        ("PAPAGO_API_KEY", "API Key", "password", True),
+    ]),
 }
 
-# Translators that don't need any configuration (cloud-free or local)
+# Backwards-compatible env map (derived from metadata)
+_TRANSLATOR_ENV_MAP = {
+    tid: (fields[0][0],  # first field's env var as the "key"
+          next((f[0] for f in fields if "BASE" in f[0] or "URL" in f[0]), ""),
+          next((f[0] for f in fields if "MODEL" in f[0]), ""))
+    for tid, (name, fields) in _TRANSLATOR_CONFIG_META.items()
+}
+
+# Translators that don't need any configuration
 _NO_CONFIG_TRANSLATORS = {"google", "none", "original", "sugoi", "jparacrawl", "jparacrawl_big", "sakura"}
 
 
@@ -554,16 +600,24 @@ async def health_check():
 @app.get("/api/config/translator", response_model=list[TranslatorConfigItem], summary="获取翻译器配置状态")
 async def get_translator_configs():
     result: list[TranslatorConfigItem] = []
-    for tid, (key_env, base_env, model_env) in _TRANSLATOR_ENV_MAP.items():
-        api_key = os.environ.get(key_env, "")
-        api_base = os.environ.get(base_env, "") if base_env else ""
-        model = os.environ.get(model_env, "") if model_env else ""
+    for tid, (display_name, fields_meta) in _TRANSLATOR_CONFIG_META.items():
+        fields = []
+        all_required_set = True
+        for env_var, label, ftype, required in fields_meta:
+            val = os.environ.get(env_var, "")
+            if required and not val:
+                all_required_set = False
+            if val and ftype == "password":
+                val_display = val[:4] + "***" if len(val) > 4 else ("***" if val else "")
+            else:
+                val_display = val
+            fields.append(ConfigField(
+                env_var=env_var, label=label, field_type=ftype,
+                required=required, value=val_display,
+            ))
         result.append(TranslatorConfigItem(
-            translator=tid,
-            api_key=api_key[:8] + "***" if len(api_key) > 8 else ("***" if api_key else ""),
-            api_base=api_base,
-            model=model,
-            configured=bool(api_key),
+            translator=tid, display_name=display_name,
+            fields=fields, configured=all_required_set,
         ))
     return result
 
@@ -571,13 +625,11 @@ async def get_translator_configs():
 @app.post("/api/config/translator", summary="保存翻译器配置")
 async def save_translator_config(payload: dict):
     tid = (payload or {}).get("translator", "").strip()
-    if tid not in _TRANSLATOR_ENV_MAP:
+    if tid not in _TRANSLATOR_CONFIG_META:
         raise HTTPException(status_code=422, detail=f"不支持的翻译器：{tid}")
 
-    key_env, base_env, model_env = _TRANSLATOR_ENV_MAP[tid]
+    _display_name, fields_meta = _TRANSLATOR_CONFIG_META[tid]
     env_path = settings.glossary_dir.parent / ".env"
-
-    # Read existing .env
     env_lines: list[str] = []
     if env_path.exists():
         env_lines = env_path.read_text(encoding="utf-8").splitlines()
@@ -586,26 +638,18 @@ async def save_translator_config(payload: dict):
         nonlocal env_lines
         if not key:
             return
-        found = False
+        os.environ[key] = value
         for i, line in enumerate(env_lines):
             if line.startswith(f"{key}="):
                 env_lines[i] = f"{key}={value}"
-                found = True
-                break
-        if not found:
-            env_lines.append(f"{key}={value}")
-        os.environ[key] = value
+                return
+        env_lines.append(f"{key}={value}")
 
-    api_key = payload.get("api_key", "").strip()
-    api_base = payload.get("api_base", "").strip()
-    model = payload.get("model", "").strip()
-
-    if api_key:
-        _update_env(key_env, api_key)
-    if api_base and base_env:
-        _update_env(base_env, api_base)
-    if model and model_env:
-        _update_env(model_env, model)
+    values = (payload or {}).get("values", {})
+    for env_var, _label, _ftype, _required in fields_meta:
+        val = str(values.get(env_var, "")).strip()
+        if val:
+            _update_env(env_var, val)
 
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     return {"status": "saved", "translator": tid}
