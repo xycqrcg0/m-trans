@@ -120,6 +120,7 @@ class OptionItem(BaseModel):
 class TranslatorOption(OptionItem):
     requires_key: bool = True
     configured: bool = True
+    supported_langs: list[str] | None = None  # None = all languages supported
 
 class OptionsResponse(BaseModel):
     languages: list[OptionItem]

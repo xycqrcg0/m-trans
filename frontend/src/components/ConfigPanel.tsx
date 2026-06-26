@@ -18,17 +18,17 @@ const FALLBACK_LANGS: OptionItem[] = [
   { id: 'ENG', name: '英语' }, { id: 'JPN', name: '日语' }, { id: 'KOR', name: '韩语' },
 ]
 const FALLBACK_TRANSLATORS: TranslatorOption[] = [
-  { id: 'google', name: 'Google', requires_key: false, configured: true },
-  { id: 'youdao', name: 'Youdao', requires_key: true, configured: false },
-  { id: 'deepl', name: 'DeepL', requires_key: true, configured: false },
-  { id: 'chatgpt', name: 'ChatGPT', requires_key: true, configured: false },
-  { id: 'deepseek', name: 'DeepSeek', requires_key: true, configured: false },
-  { id: 'gemini', name: 'Gemini', requires_key: true, configured: false },
-  { id: 'groq', name: 'Groq', requires_key: true, configured: false },
-  { id: 'sakura', name: 'Sakura', requires_key: false, configured: true },
-  { id: 'custom_openai', name: 'Custom OpenAI', requires_key: true, configured: false },
-  { id: 'original', name: '原文', requires_key: false, configured: true },
-  { id: 'none', name: '不翻译', requires_key: false, configured: true },
+  { id: 'google', name: 'Google', requires_key: false, configured: true, supported_langs: null },
+  { id: 'youdao', name: 'Youdao', requires_key: true, configured: false, supported_langs: null },
+  { id: 'deepl', name: 'DeepL', requires_key: true, configured: false, supported_langs: null },
+  { id: 'chatgpt', name: 'ChatGPT', requires_key: true, configured: false, supported_langs: null },
+  { id: 'deepseek', name: 'DeepSeek', requires_key: true, configured: false, supported_langs: null },
+  { id: 'gemini', name: 'Gemini', requires_key: true, configured: false, supported_langs: null },
+  { id: 'groq', name: 'Groq', requires_key: true, configured: false, supported_langs: null },
+  { id: 'sakura', name: 'Sakura', requires_key: false, configured: true, supported_langs: null },
+  { id: 'custom_openai', name: 'Custom OpenAI', requires_key: true, configured: false, supported_langs: null },
+  { id: 'original', name: '原文', requires_key: false, configured: true, supported_langs: null },
+  { id: 'none', name: '不翻译', requires_key: false, configured: true, supported_langs: null },
 ]
 const FALLBACK_DETECTORS: OptionItem[] = [
   { id: 'default', name: 'Default' }, { id: 'ctd', name: 'CTD' },
@@ -67,6 +67,9 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   const isEraseOnly = config.render_translated_text === false
   const isLLMTranslator = !!config.translator && LLM_TRANSLATORS.has(config.translator)
   const selectedTranslator = translators.find((t) => t.id === config.translator)
+  const langUnsupported = !!selectedTranslator?.supported_langs &&
+    !!config.target_lang && !selectedTranslator.supported_langs.includes(config.target_lang)
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -121,6 +124,15 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                   <AlertCircle className="h-3 w-3 shrink-0" />
                   <span>该翻译引擎需要配置 API Key，</span>
                   <Link to="/settings" className="underline">去配置</Link>
+                </div>
+              )}
+              {langUnsupported && (
+                <div className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1 text-xs text-red-600">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>
+                    该翻译引擎不支持「{config.target_lang}」目标语言，仅支持：
+                    {selectedTranslator?.supported_langs?.join('、')}
+                  </span>
                 </div>
               )}
             </div>

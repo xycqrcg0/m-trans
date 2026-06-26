@@ -418,6 +418,12 @@ async def get_options():
             return bool(os.environ.get(key_env, ""))
         return True  # unknown translators default to configured
 
+    # Translators with restricted language support
+    _LANG_RESTRICTED = {
+        "sugoi": ["JPN", "ENG"],
+        "jparacrawl": ["JPN", "ENG"],
+        "jparacrawl_big": ["JPN", "ENG"],
+    }
     translators = [
         TranslatorOption(id=Translator.google.value, name="Google (web)", requires_key=False, configured=True),
         TranslatorOption(id=Translator.youdao.value, name="Youdao", requires_key=True, configured=_is_configured("youdao")),
@@ -435,9 +441,9 @@ async def get_options():
         TranslatorOption(id=Translator.gemini.value, name="Gemini", requires_key=True, configured=_is_configured("gemini")),
         TranslatorOption(id=Translator.gemini_2stage.value, name="Gemini (2-stage)", requires_key=True, configured=_is_configured("gemini_2stage")),
         TranslatorOption(id=Translator.custom_openai.value, name="Custom OpenAI", requires_key=True, configured=_is_configured("custom_openai")),
-        TranslatorOption(id=Translator.sugoi.value, name="Sugoi", requires_key=False, configured=True),
-        TranslatorOption(id=Translator.jparacrawl.value, name="JParaCrawl", requires_key=False, configured=True),
-        TranslatorOption(id=Translator.jparacrawl_big.value, name="JParaCrawl (Big)", requires_key=False, configured=True),
+        TranslatorOption(id=Translator.sugoi.value, name="Sugoi", requires_key=False, configured=True, supported_langs=_LANG_RESTRICTED["sugoi"]),
+        TranslatorOption(id=Translator.jparacrawl.value, name="JParaCrawl", requires_key=False, configured=True, supported_langs=_LANG_RESTRICTED["jparacrawl"]),
+        TranslatorOption(id=Translator.jparacrawl_big.value, name="JParaCrawl (Big)", requires_key=False, configured=True, supported_langs=_LANG_RESTRICTED["jparacrawl_big"]),
     ]
     detectors = [
         OptionItem(id=Detector.ctd.value, name="CTD"),
