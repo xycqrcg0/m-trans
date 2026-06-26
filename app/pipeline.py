@@ -170,7 +170,20 @@ async def run_pipeline(
                 translator.set_polish_fn(polish_fn)
             translator._stop_before_render = stop_before_render
 
-            ctx = await translator.translate(image, config)
+            try:
+                ctx = await translator.translate(image, config)
+            except Exception as e:
+                # Wrap with context about which stage failed
+                err_type = type(e).__name__
+                if "Timeout" in err_type or "ConnectTimeout" in err_type:
+                    raise RuntimeError(
+                        f"翻译服务连接超时（{err_type}）。请检查网络连接或翻译引擎配置。"
+                    ) from e
+                if "Connection" in err_type or "ConnectionError" in err_type:
+                    raise RuntimeError(
+                        f"无法连接翻译服务（{err_type}）。请检查 API 地址或网络。"
+                    ) from e
+                raise
         finally:
             if polish_fn:
                 translator.set_polish_fn(None)

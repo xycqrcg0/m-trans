@@ -270,7 +270,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {result_path}")
             except Exception as e:
                 logger.error(f"Error saving input.png debug image: {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
 
         # preload and download models (not strictly necessary, remove to lazy load)
         if ( self.models_ttl == 0 ):
@@ -312,7 +312,7 @@ class MangaTranslator:
             try:
                 ctx.img_colorized = await self._run_colorizer(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during colorizing:\n{traceback.format_exc()}")  
+                logger.error(f"Error during colorizing:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise  
                 ctx.img_colorized = ctx.input  # Fallback to input image if colorization fails
@@ -328,7 +328,7 @@ class MangaTranslator:
             try:
                 ctx.upscaled = await self._run_upscaling(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during upscaling:\n{traceback.format_exc()}")  
+                logger.error(f"Error during upscaling:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise  
                 ctx.upscaled = ctx.img_colorized # Fallback to colorized (or input) image if upscaling fails
@@ -342,7 +342,7 @@ class MangaTranslator:
         try:
             ctx.textlines, ctx.mask_raw, ctx.mask = await self._run_detection(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during detection:\n{traceback.format_exc()}")  
+            logger.error(f"Error during detection:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.textlines = [] 
@@ -369,7 +369,7 @@ class MangaTranslator:
         try:
             ctx.textlines = await self._run_ocr(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during ocr:\n{traceback.format_exc()}")  
+            logger.error(f"Error during ocr:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.textlines = [] # Fallback to empty textlines if OCR fails
@@ -385,7 +385,7 @@ class MangaTranslator:
         try:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during textline_merge:\n{traceback.format_exc()}")  
+            logger.error(f"Error during textline_merge:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.text_regions = [] # Fallback to empty text_regions if textline merge fails
@@ -417,7 +417,7 @@ class MangaTranslator:
         try:
             ctx.text_regions = await self._run_text_translation(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during translating:\n{traceback.format_exc()}")  
+            logger.error(f"Error during translating:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.text_regions = [] # Fallback to empty text_regions if translation fails
@@ -448,7 +448,7 @@ class MangaTranslator:
             try:
                 ctx.mask = await self._run_mask_refinement(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during mask-generation:\n{traceback.format_exc()}")  
+                logger.error(f"Error during mask-generation:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise 
                 ctx.mask = ctx.mask_raw if ctx.mask_raw is not None else np.zeros_like(ctx.img_rgb, dtype=np.uint8)[:,:,0] # Fallback to raw mask or empty mask
@@ -464,7 +464,7 @@ class MangaTranslator:
         try:
             ctx.img_inpainted = await self._run_inpainting(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during inpainting:\n{traceback.format_exc()}")  
+            logger.error(f"Error during inpainting:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise
             else:
@@ -484,7 +484,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {inpainted_path}")
             except Exception as e:
                 logger.error(f"Error saving inpainted.png debug image: {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
         # -- Interactive edit: stop before rendering so the caller can
         # modify translations and then call render_translations().
         if self._stop_before_render:
@@ -504,7 +504,7 @@ class MangaTranslator:
         try:
             ctx.img_rendered = await self._run_text_rendering(config, ctx)
         except Exception as e:
-            logger.error(f"Error during rendering:\n{traceback.format_exc()}")
+            logger.error(f"Error during rendering:\n{str(e)}")
             if not self.ignore_errors:
                 raise
             ctx.img_rendered = ctx.img_inpainted # Fallback to inpainted (or original RGB) image if rendering fails
@@ -533,7 +533,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {final_path}")
             except Exception as e:
                 logger.error(f"Error saving final.png debug image: {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
 
         # Web流式模式优化：保存final.png并使用占位符
         if ctx.result and not self.result_sub_folder and hasattr(self, '_is_streaming_mode') and self._is_streaming_mode:
@@ -568,7 +568,7 @@ class MangaTranslator:
         try:
             ctx.img_rendered = await self._run_text_rendering(config, ctx)
         except Exception as e:
-            logger.error(f"Error during rendering:\n{traceback.format_exc()}")
+            logger.error(f"Error during rendering:\n{str(e)}")
             if not self.ignore_errors:
                 raise
             ctx.img_rendered = ctx.img_inpainted
@@ -1596,7 +1596,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {result_path}")
             except Exception as e:
                 logger.error(f"Error saving input.png debug image: {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
 
         # preload and download models (not strictly necessary, remove to lazy load)
         if ( self.models_ttl == 0 ):
@@ -1620,7 +1620,7 @@ class MangaTranslator:
             try:
                 ctx.img_colorized = await self._run_colorizer(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during colorizing:\n{traceback.format_exc()}")  
+                logger.error(f"Error during colorizing:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise  
                 ctx.img_colorized = ctx.input
@@ -1633,7 +1633,7 @@ class MangaTranslator:
             try:
                 ctx.upscaled = await self._run_upscaling(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during upscaling:\n{traceback.format_exc()}")  
+                logger.error(f"Error during upscaling:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise  
                 ctx.upscaled = ctx.img_colorized
@@ -1647,7 +1647,7 @@ class MangaTranslator:
         try:
             ctx.textlines, ctx.mask_raw, ctx.mask = await self._run_detection(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during detection:\n{traceback.format_exc()}")  
+            logger.error(f"Error during detection:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.textlines = [] 
@@ -1673,7 +1673,7 @@ class MangaTranslator:
         try:
             ctx.textlines = await self._run_ocr(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during ocr:\n{traceback.format_exc()}")  
+            logger.error(f"Error during ocr:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.textlines = []
@@ -1688,7 +1688,7 @@ class MangaTranslator:
         try:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
         except Exception as e:  
-            logger.error(f"Error during textline_merge:\n{traceback.format_exc()}")  
+            logger.error(f"Error during textline_merge:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise 
             ctx.text_regions = []
@@ -2419,7 +2419,7 @@ class MangaTranslator:
             try:
                 ctx.mask = await self._run_mask_refinement(config, ctx)
             except Exception as e:  
-                logger.error(f"Error during mask-generation:\n{traceback.format_exc()}")  
+                logger.error(f"Error during mask-generation:\n{str(e)}")  
                 if not self.ignore_errors:  
                     raise 
                 ctx.mask = ctx.mask_raw if ctx.mask_raw is not None else np.zeros_like(ctx.img_rgb, dtype=np.uint8)[:,:,0]
@@ -2442,7 +2442,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {mask_final_path}")
             except Exception as e:
                 logger.error(f"Error saving debug images (inpaint_input.png, mask_final.png): {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
 
         # -- Inpainting
         await self._report_progress('inpainting')
@@ -2450,7 +2450,7 @@ class MangaTranslator:
             ctx.img_inpainted = await self._run_inpainting(config, ctx)
 
         except Exception as e:  
-            logger.error(f"Error during inpainting:\n{traceback.format_exc()}")  
+            logger.error(f"Error during inpainting:\n{str(e)}")  
             if not self.ignore_errors:  
                 raise
             else:
@@ -2465,7 +2465,7 @@ class MangaTranslator:
                     logger.warning(f"Failed to save debug image: {inpainted_path}")
             except Exception as e:
                 logger.error(f"Error saving inpainted.png debug image: {e}")
-                logger.debug(f"Exception details: {traceback.format_exc()}")
+                logger.debug(f"Exception details: {str(e)}")
 
         # -- Rendering
         await self._report_progress('rendering')
@@ -2479,7 +2479,7 @@ class MangaTranslator:
         try:
             ctx.img_rendered = await self._run_text_rendering(config, ctx)
         except Exception as e:
-            logger.error(f"Error during rendering:\n{traceback.format_exc()}")
+            logger.error(f"Error during rendering:\n{str(e)}")
             if not self.ignore_errors:
                 raise
             ctx.img_rendered = ctx.img_inpainted
