@@ -111,54 +111,99 @@ def apply_glossary_to_regions(
 
 
 # ---------------------------------------------------------------------------
-# Claude API
+# LLM API — supports any OpenAI-compatible endpoint (Anthropic, OpenAI,
+# DeepSeek, Groq, Ollama, vLLM, etc.)
 # ---------------------------------------------------------------------------
 
-CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
-CLAUDE_MODEL = "claude-sonnet-4-20250514"  # or claude-3-5-haiku-latest for speed
+import os
 
-# Anthropic SDK is NOT required — use raw httpx to keep dependency count zero.
+def _get_polish_config() -> tuple[str, str, str]:
+    """Return (api_key, api_base, model) for the polish LLM."""
+    api_key = os.environ.get("POLISH_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
+    api_base = os.environ.get("POLISH_API_BASE", "https://api.anthropic.com/v1")
+    model = os.environ.get("POLISH_MODEL", "claude-sonnet-4-20250514")
+    return api_key, api_base, model
 
 
-async def _call_claude(
+async def _call_llm(
     api_key: str,
+    api_base: str,
+    model: str,
     system: str,
     user_msg: str,
     *,
     max_tokens: int = 4096,
-    timeout_s: int = 30,
+    timeout_s: int = 60,
 ) -> Optional[str]:
-    """Single Claude API call, returns the text content block."""
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
+    """Call an OpenAI-compatible chat completion API.
+    Auto-detects Anthropic vs OpenAI format from the base URL.
+    """
+    if "anthropic.com" in api_base:
+        return await _call_anthropic(api_key, api_base, model, system, user_msg, max_tokens, timeout_s)
+    return await _call_openai(api_key, api_base, model, system, user_msg, max_tokens, timeout_s)
+
+
+async def _call_openai(
+    api_key: str, api_base: str, model: str,
+    system: str, user_msg: str,
+    max_tokens: int, timeout_s: int,
+) -> Optional[str]:
+    url = f"{api_base.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
-        "model": CLAUDE_MODEL,
-        "max_tokens": max_tokens,
+        "model": model, "max_tokens": max_tokens, "temperature": 0.3,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        choices = data.get("choices", [])
+        if choices:
+            return choices[0].get("message", {}).get("content", "")
+        logger.warning("LLM response had no choices: %s", data)
+        return None
+    except httpx.HTTPStatusError as e:
+        logger.error("LLM API error [%s]: %s", e.response.status_code, e.response.text[:500])
+    except httpx.TimeoutException:
+        logger.error("LLM API timeout after %ds", timeout_s)
+    except Exception as e:
+        logger.error("LLM API error: %s", e)
+    return None
+
+
+async def _call_anthropic(
+    api_key: str, api_base: str, model: str,
+    system: str, user_msg: str,
+    max_tokens: int, timeout_s: int,
+) -> Optional[str]:
+    url = f"{api_base.rstrip('/')}/messages"
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    payload = {
+        "model": model, "max_tokens": max_tokens,
         "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": user_msg}],
     }
-
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
-            resp = await client.post(CLAUDE_API_URL, headers=headers, json=payload)
+            resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()
-
-        # Extract content text from first content block
         for block in data.get("content", []):
             if block.get("type") == "text":
                 return block["text"]
-        logger.warning("Claude response had no text block: %s", data)
+        logger.warning("Anthropic response had no text block: %s", data)
         return None
     except httpx.HTTPStatusError as e:
-        logger.error("Claude API error [%s]: %s", e.response.status_code, e.response.text[:500])
+        logger.error("Anthropic API error [%s]: %s", e.response.status_code, e.response.text[:500])
     except httpx.TimeoutException:
-        logger.error("Claude API timeout after %ds", timeout_s)
+        logger.error("Anthropic API timeout after %ds", timeout_s)
     except Exception as e:
-        logger.error("Claude API unexpected error: %s", e)
+        logger.error("Anthropic API error: %s", e)
     return None
 
 
@@ -217,7 +262,8 @@ async def polish_translations(
     # 5. Call LLM
     system = system_prompt or POLISH_SYSTEM_PROMPT
     user_msg = _build_prompt(texts)
-    raw = await _call_claude(api_key, system, user_msg)
+    p_key, p_base, p_model = _get_polish_config()
+    raw = await _call_llm(p_key, p_base, p_model, system, user_msg)
     if raw is None:
         return  # fallback: keep original translation
 

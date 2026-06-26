@@ -590,10 +590,12 @@ _TRANSLATOR_ENV_MAP = {
     for tid, (name, fields) in _TRANSLATOR_CONFIG_META.items()
 }
 
-# LLM polish config (separate from translators)
+# LLM polish config (supports any OpenAI-compatible API)
 _POLISH_CONFIG_META = {
-    "anthropic": ("LLM 润色 (Claude)", [
-        ("ANTHROPIC_API_KEY", "Anthropic API Key", "password", True),
+    "polish": ("LLM 润色（自定义）", [
+        ("POLISH_API_KEY", "API Key", "password", True),
+        ("POLISH_API_BASE", "API Base URL", "text", False),
+        ("POLISH_MODEL", "模型名称", "text", False),
     ]),
 }
 

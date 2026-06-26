@@ -125,11 +125,7 @@ def _make_polish_fn(task_cfg: TaskConfig):
     glossary = load_glossary_mapping(task_cfg.glossary_id) if task_cfg.glossary_id else None
 
     async def _polish(text_regions: list) -> None:
-        await polish_translations(
-            text_regions,
-            api_key=settings.anthropic_api_key,
-            glossary=glossary,
-        )
+        await polish_translations(text_regions, glossary=glossary)
 
     return _polish
 

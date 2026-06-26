@@ -54,7 +54,7 @@ class GoogleDirectTranslator(CommonTranslator):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             "Accept": "*/*",
         }
-        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
             for text in queries:
                 if not text or not text.strip():
                     results.append(text)
@@ -83,9 +83,18 @@ class GoogleDirectTranslator(CommonTranslator):
                         if not translated:
                             translated = text
                         break
+                    except (httpx.ConnectTimeout, httpx.ConnectError) as e:
+                        # Network unreachable — don't retry, fail immediately
+                        raise RuntimeError(
+                            f"无法连接 Google 翻译服务（{type(e).__name__}）。"
+                            "请检查网络连接或更换翻译引擎。"
+                        ) from e
                     except Exception as e:
-                        self.logger.warning("Google Direct attempt %d failed for %r: %s", attempt + 1, text, e)
-                        await asyncio.sleep(0.5)
+                        if attempt < 2:
+                            self.logger.warning("Google Direct attempt %d failed for %r: %s", attempt + 1, text, e)
+                            await asyncio.sleep(0.5)
+                        else:
+                            raise
 
                 results.append(translated)
                 await asyncio.sleep(0.3)  # gentle rate limit between queries
