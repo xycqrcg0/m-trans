@@ -5,7 +5,10 @@ import {
   submitEdits,
   renderPreview,
   getInpaintedUrl,
+  listGlossaries,
+  addGlossaryEntry,
   type EditablePage,
+  type GlossaryMeta,
 } from '@/lib/api'
 import { PositionCanvas } from '@/components/PositionCanvas'
 
@@ -31,6 +34,8 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   const [renderedUrl, setRenderedUrl] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [glossaries, setGlossaries] = useState<GlossaryMeta[]>([])
+  const [addTermMsg, setAddTermMsg] = useState<string | null>(null)
 
   // Clean (text-erased) base image, used by the canvas to erase-in-place.
   const inpaintedUrl = getInpaintedUrl(taskId, pageIndex + 1)
@@ -49,6 +54,9 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       })
   }, [taskId])
 
+  useEffect(() => {
+    listGlossaries().then(res => setGlossaries(res)).catch(() => {})
+  }, [])
   const pageKey = String(pageIndex)
   const currentPage = pages.find(p => p.page_index === pageIndex) ?? null
   const pageOffsets = offsets[pageKey] ?? {}
@@ -251,8 +259,36 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
                 }}
                 className="text-xs text-slate-400 hover:text-slate-700"
               >恢复初翻</button>
+              {glossaries.length > 0 && (
+                <select
+                  className="text-xs rounded border border-slate-200 px-1 py-0.5"
+                  defaultValue=""
+                  onChange={async (e) => {
+                    const gid = e.target.value
+                    if (!gid || selected === null) return
+                    const block = currentPage.text_blocks[selected]
+                    if (!block) return
+                    const src = block.original_text.trim()
+                    const tgt = getEditText(selected, block.polished_text || block.translated_text).trim()
+                    if (!src || !tgt) return
+                    try {
+                      await addGlossaryEntry(gid, src, tgt)
+                      setAddTermMsg(`已加入：${src} → ${tgt}`)
+                      setTimeout(() => setAddTermMsg(null), 3000)
+                    } catch {
+                      setAddTermMsg('加入失败')
+                      setTimeout(() => setAddTermMsg(null), 3000)
+                    }
+                    e.target.value = ""
+                  }}
+                >
+                  <option value="" disabled>加入术语表…</option>
+                  {glossaries.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              )}
             </div>
           </div>
+          {addTermMsg && <p className="text-xs text-green-600">{addTermMsg}</p>}
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
               <label className="text-xs text-slate-500">原文</label>

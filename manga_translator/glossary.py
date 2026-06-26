@@ -162,8 +162,23 @@ def update_entries(glossary_id: str, entries: list[dict]) -> Glossary:
     return g
 
 
-def delete_entry(glossary_id: str, source: str) -> Glossary:
-    """Remove a single entry by source text."""
+
+def add_entry(glossary_id: str, source: str, target: str, note: str = "") -> Glossary:
+    """Add or update a single entry. If source already exists, update target."""
+    g = load_glossary(glossary_id)
+    if g is None:
+        raise ValueError(f"Glossary '{glossary_id}' does not exist")
+    for e in g.entries:
+        if e.source == source:
+            e.target = target
+            if note:
+                e.note = note
+            _save(g)
+            return g
+    g.entries.append(GlossaryEntry(source=source, target=target, note=note))
+    _save(g)
+    return g
+
     g = load_glossary(glossary_id)
     if g is None:
         raise ValueError(f"Glossary '{glossary_id}' does not exist")

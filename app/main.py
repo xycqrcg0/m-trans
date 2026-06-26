@@ -599,8 +599,19 @@ async def delete_glossary_api(glossary_id: str):
 @app.delete("/api/glossaries/{glossary_id}/entries/{source}", response_model=Glossary, summary="删除术语条目")
 async def delete_glossary_entry_api(glossary_id: str, source: str):
     glossary = delete_entry(glossary_id, source)
-    return Glossary.model_validate(glossary.to_dict())
 
+@app.post("/api/glossaries/{glossary_id}/entries", summary="添加或更新单个术语条目")
+async def add_glossary_entry(glossary_id: str, payload: dict):
+    source = (payload or {}).get("source", "").strip()
+    target = (payload or {}).get("target", "").strip()
+    note = (payload or {}).get("note", "").strip()
+    if not source or not target:
+        raise HTTPException(status_code=422, detail="source 和 target 不能为空")
+    try:
+        glossary = add_entry(glossary_id, source, target, note)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "ok", "entry_count": len(glossary.entries)}
 
 
 # ── Translator configuration ──
