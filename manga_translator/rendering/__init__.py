@@ -216,6 +216,41 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
 
     return dst_points_list
 
+import os as _os
+
+# Font paths for different text categories
+_FONT_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))), 'fonts')
+_FONTS = {
+    'default': _os.path.join(_FONT_DIR, 'Arial-Unicode-Regular.ttf'),
+    'comic': _os.path.join(_FONT_DIR, 'anime_ace_3.ttf'),
+    'mono': _os.path.join(_FONT_DIR, 'msgothic.ttc'),
+}
+
+def _select_region_font(region, default_font: str) -> str:
+    """Pick a font suited to the text region's characteristics.
+
+    - SFX (sound effects): large text, few characters, often outside speech
+      bubbles → comic font (anime_ace) for a hand-lettered look
+    - Short dialogue in bubbles → default font
+    - Everything else → default font
+    """
+    text = (region.translation or "").strip()
+    if not text:
+        return default_font
+
+    # Heuristic: SFX detection — very large font size relative to image,
+    # short text (1-4 chars), often kana-only or onomatopoeia
+    font_size = getattr(region, 'font_size', 0) or 0
+    num_chars = len(text)
+
+    # Large font + short text = likely SFX → use comic font
+    if font_size > 40 and num_chars <= 6:
+        comic = _FONTS.get('comic', '')
+        if comic and _os.path.exists(comic):
+            return comic
+
+    return default_font
+
 async def dispatch(
     img: np.ndarray,
     text_regions: List[TextBlock],
@@ -229,20 +264,25 @@ async def dispatch(
     disable_font_border: bool = False
     ) -> np.ndarray:
 
+    # Set default font for the batch
     text_render.set_font(font_path)
     text_regions = list(filter(lambda region: region.translation, text_regions))
 
     # Resize regions that are too small
     dst_points_list = resize_regions_to_font_size(img, text_regions, font_size_fixed, font_size_offset, font_size_minimum)
 
-    # TODO: Maybe remove intersections
-
-    # Render text
+    # Render text — select font per region based on text characteristics
     for region, dst_points in tqdm(zip(text_regions, dst_points_list), '[render]', total=len(text_regions)):
+        # Pick the best font for this region
+        region_font = _select_region_font(region, font_path)
+        if region_font != font_path:
+            text_render.set_font(region_font)
         if render_mask is not None:
-            # set render_mask to 1 for the region that is inside dst_points
             cv2.fillConvexPoly(render_mask, dst_points.astype(np.int32), 1)
         img = render(img, region, dst_points, hyphenate, line_spacing, disable_font_border)
+        # Restore default font for next region
+        if region_font != font_path:
+            text_render.set_font(font_path)
     return img
 
 def render(
