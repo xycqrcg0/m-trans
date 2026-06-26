@@ -182,6 +182,21 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
                 size = [float(v) for v in us]
         except Exception:
             pass
+
+        # Font size and colors for WYSIWYG preview
+        font_size = int(getattr(region, "font_size", 0) or 0)
+        fg_color = [0, 0, 0]
+        bg_color = [255, 255, 255]
+        try:
+            fg = np.asarray(region.fg_colors).tolist()
+            if isinstance(fg, list) and len(fg) >= 3:
+                fg_color = [int(v) for v in fg[:3]]
+            bg = np.asarray(region.bg_colors).tolist()
+            if isinstance(bg, list) and len(bg) >= 3:
+                bg_color = [int(v) for v in bg[:3]]
+        except Exception:
+            pass
+        horizontal = getattr(region, "horizontal", True)
         translated = getattr(region, "raw_translation", None)
         if translated is None:
             translated = getattr(region, "translation", "") or ""
@@ -194,6 +209,10 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
                 polished_text=polished,
                 center=center,
                 size=size,
+                font_size=font_size,
+                fg_color=fg_color,
+                bg_color=bg_color,
+                horizontal=horizontal,
             )
         )
     return blocks

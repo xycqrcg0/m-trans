@@ -51,6 +51,13 @@ class TextBlockResult(BaseModel):
     center: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     # Original bounding box size (width, height) for display
     size: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
+    # Font size (OCR-detected, before shrink-to-fit) for preview rendering
+    font_size: int = 0
+    # Text foreground and background colors [r, g, b] for preview rendering
+    fg_color: list[int] = Field(default_factory=lambda: [0, 0, 0], min_length=3, max_length=3)
+    bg_color: list[int] = Field(default_factory=lambda: [255, 255, 255], min_length=3, max_length=3)
+    # Whether text is horizontal or vertical
+    horizontal: bool = True
 
 class Page(BaseModel):
     filename: str
