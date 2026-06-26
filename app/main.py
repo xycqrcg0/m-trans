@@ -9,6 +9,7 @@ from typing import List
 
 from app.logging_config import setup_logging, cleanup_old_logs, list_log_files, read_log_file, delete_log_file
 
+setup_logging()
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,9 +51,10 @@ logger = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Re-apply our logging config — uvicorn may have overridden it
+    setup_logging()
     set_glossary_dir(settings.glossary_dir)
     cleanup_old_logs()
-    # Always recreate the built-in default so new entries ship on upgrade.
     create_default_glossary()
     await worker.startup()
     yield
