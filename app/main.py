@@ -35,6 +35,7 @@ from app.models import (
 from config.settings import settings
 from manga_translator.config import Detector, Inpainter, Ocr, Translator
 from manga_translator.glossary import (
+    add_entry,
     create_default_glossary,
     create_glossary,
     delete_entry,
