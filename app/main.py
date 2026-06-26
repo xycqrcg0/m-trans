@@ -573,18 +573,22 @@ _TRANSLATOR_CONFIG_META: dict[str, tuple[str, list[tuple[str, str, str, bool]]]]
     "papago": ("Papago", [
         ("PAPAGO_API_KEY", "API Key", "password", True),
     ]),
+    "sakura": ("Sakura (本地 LLM)", [
+        ("SAKURA_API_BASE", "API Base URL", "text", False),
+        ("SAKURA_VERSION", "版本（0.9 或 0.10）", "text", False),
+    ]),
 }
 
 # Backwards-compatible env map (derived from metadata)
 _TRANSLATOR_ENV_MAP = {
-    tid: (fields[0][0],  # first field's env var as the "key"
+    tid: (fields[0][0],
           next((f[0] for f in fields if "BASE" in f[0] or "URL" in f[0]), ""),
           next((f[0] for f in fields if "MODEL" in f[0]), ""))
     for tid, (name, fields) in _TRANSLATOR_CONFIG_META.items()
 }
 
 # Translators that don't need any configuration
-_NO_CONFIG_TRANSLATORS = {"google", "none", "original", "sugoi", "jparacrawl", "jparacrawl_big", "sakura"}
+_NO_CONFIG_TRANSLATORS = {"google", "none", "original", "sugoi", "jparacrawl", "jparacrawl_big"}
 
 
 @app.get("/api/health", response_model=HealthResponse, summary="健康检查")
