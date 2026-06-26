@@ -31,10 +31,12 @@ export default function Home() {
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">上传漫画</h1>
-        <p className="mt-1 text-sm text-slate-500">上传图片后自动完成识别、翻译、润色、合成全流程</p>
+        <p className="mt-1 text-sm text-slate-500">
+          上传图片后自动完成识别、翻译、润色、合成全流程
+        </p>
       </div>
 
-      <div className="rounded-lg border border-slate-200 p-5 space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
         <UploadZone files={files} onChange={setFiles} />
 
         <div className="border-t border-slate-100 pt-5">
@@ -42,12 +44,16 @@ export default function Home() {
           <ConfigPanel config={config} onChange={setConfig} />
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         <button
           onClick={handleSubmit}
           disabled={loading || !files.length}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading ? '提交中…' : '开始翻译'}

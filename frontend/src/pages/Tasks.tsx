@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, ListTodo } from 'lucide-react'
 import { listTasks, type Task } from '@/lib/api'
 import { TaskCard } from '@/components/TaskCard'
 
@@ -37,9 +37,14 @@ export default function Tasks() {
       {loading && <p className="text-center text-sm text-slate-400 py-12">加载中…</p>}
 
       {!loading && tasks.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-200 py-16 text-center">
+        <div className="rounded-xl border border-dashed border-slate-200 py-16 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+            <ListTodo className="h-6 w-6 text-slate-300" />
+          </div>
           <p className="text-sm text-slate-400">暂无翻译任务</p>
-          <Link to="/" className="mt-3 inline-block text-sm font-medium text-slate-700 hover:underline">去上传第一张漫画</Link>
+          <Link to="/" className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700">
+            去上传第一张漫画 →
+          </Link>
         </div>
       )}
 

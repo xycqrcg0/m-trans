@@ -34,8 +34,8 @@ export function UploadZone({ files, onChange }: UploadZoneProps) {
     <div className="space-y-3">
       <div
         className={cn(
-          'relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors',
-          dragging ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400',
+          'relative flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all',
+          dragging ? 'border-indigo-400 bg-indigo-50/50 scale-[1.01]' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50/50',
         )}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}

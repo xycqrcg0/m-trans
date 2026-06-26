@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { Upload, ListTodo, BookOpen, Settings as SettingsIcon, ScrollText } from 'lucide-react'
+import { Upload, ListTodo, BookOpen, Settings as SettingsIcon, ScrollText, Languages } from 'lucide-react'
 import Home from '@/pages/Home'
 import Tasks from '@/pages/Tasks'
 import TaskDetail from '@/pages/TaskDetail'
@@ -16,9 +16,16 @@ function Nav() {
     { to: '/settings', icon: SettingsIcon, label: '配置', end: false },
   ]
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-        <span className="text-base font-bold text-slate-900">MangaTrans</span>
+        <NavLink to="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm">
+            <Languages className="h-4 w-4" />
+          </div>
+          <span className="text-base font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+            MangaTrans
+          </span>
+        </NavLink>
         <nav className="flex gap-1">
           {links.map(({ to, icon: Icon, label, end }) => (
             <NavLink
@@ -26,8 +33,10 @@ function Nav() {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
             >
