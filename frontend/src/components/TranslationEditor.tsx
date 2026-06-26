@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, Check, AlertCircle, RotateCcw, Eye, Edit3 } from 'lucide-react'
 import {
   getEditableBlocks,
@@ -94,7 +94,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
       return { ...prev, [pageKey]: po }
     })
   }
-  const updatePreview = useCallback(async () => {
+  async function updatePreview() {
     if (!currentPage) return
     setPreviewLoading(true)
     try {
@@ -112,7 +112,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     } finally {
       setPreviewLoading(false)
     }
-  }, [currentPage, pageOffsets, taskId, pageIdx])
+  }
 
   async function handleSubmit() {
     setSubmitting(true)
