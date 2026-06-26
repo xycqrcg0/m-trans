@@ -153,6 +153,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
           imageUrl={imageUrl}
           blocks={currentPage.text_blocks}
           offsets={pageOffsets}
+          textEdits={edits[pageKey] ?? {}}
           selectedIdx={selected}
           onSelect={setSelected}
           onOffsetChange={handleOffsetChange}

@@ -10,6 +10,7 @@ interface PositionOverlayProps {
   imageUrl: string
   blocks: EditableTextBlock[]
   offsets: Record<number, [number, number]>
+  textEdits: Record<number, string>
   selectedIdx: number | null
   onSelect: (idx: number | null) => void
   onOffsetChange: (idx: number, dx: number, dy: number) => void
@@ -20,6 +21,7 @@ export function PositionOverlay({
   imageUrl,
   blocks,
   offsets,
+  textEdits,
   selectedIdx,
   onSelect,
   onOffsetChange,
@@ -55,7 +57,6 @@ export function PositionOverlay({
     setDragging(null)
   }, [])
 
-  // Build overlays from blocks
   const overlays: BlockOverlay[] = blocks
     .map((block, index) => ({ block, index }))
     .filter(o => o.block.xyxy && o.block.xyxy.length === 4 && (o.block.xyxy[2] - o.block.xyxy[0]) > 0)
@@ -91,36 +92,69 @@ export function PositionOverlay({
             const y = (y1 + dy) * scale
             const w = (x2 - x1) * scale
             const h = (y2 - y1) * scale
+            // The edited (or original) translation text to preview
+            const previewText = textEdits[index] ?? (block.polished_text || block.translated_text || '')
+            // Font size scaled to box — roughly fit text in box
+            const boxW = Math.max(w, 1)
+            const boxH = Math.max(h, 1)
+            // Estimate font size: try to fit ~8 chars per line, 2-3 lines
+            const textLen = Math.max(previewText.length, 1)
+            const fontSize = Math.max(8, Math.min(
+              boxW / Math.max(textLen * 0.6, 3),  // fit horizontally
+              boxH / 2.5,  // fit vertically (assume ~2 lines)
+              16,  // cap
+            ))
+
             return (
               <g key={index} style={{ pointerEvents: 'auto', cursor: 'move' }}
                 onMouseDown={(e) => handleMouseDown(e, index)}
               >
+                {/* Box background — semi-opaque so text is readable */}
                 <rect
                   x={x} y={y} width={w} height={h}
-                  fill={isSel ? 'rgba(99,102,241,0.15)' : 'rgba(0,0,0,0.05)'}
-                  stroke={isSel ? '#6366f1' : 'rgba(99,102,241,0.4)'}
+                  fill={isSel ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.03)'}
+                  stroke={isSel ? '#6366f1' : 'rgba(99,102,241,0.5)'}
                   strokeWidth={isSel ? 2 : 1}
-                  strokeDasharray={isSel ? '0' : '4 2'}
+                  strokeDasharray={isSel ? '0' : '3 2'}
                   rx={2}
                 />
-                {/* Label */}
+
+                {/* Preview text inside the box */}
+                {previewText && (
+                  <foreignObject x={x + 2} y={y + 2} width={Math.max(w - 4, 1)} height={Math.max(h - 4, 1)}>
+                    <div style={{
+                      width: '100%', height: '100%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      textAlign: 'center', overflow: 'hidden',
+                      fontSize: `${fontSize}px`, lineHeight: 1.2,
+                      color: '#1e293b', wordBreak: 'break-all',
+                      padding: '2px', userSelect: 'none',
+                      fontFamily: 'sans-serif',
+                    }}>
+                      {previewText}
+                    </div>
+                  </foreignObject>
+                )}
+
+                {/* Index label */}
                 <rect
-                  x={x} y={Math.max(0, y - 16)} width={24} height={14}
+                  x={x} y={Math.max(0, y - 14)} width={20} height={12}
                   fill={isSel ? '#6366f1' : 'rgba(99,102,241,0.6)'}
                   rx={2}
                 />
                 <text
-                  x={x + 12} y={Math.max(10, y - 5)}
-                  fill="white" fontSize={10} textAnchor="middle"
+                  x={x + 10} y={Math.max(8, y - 4)}
+                  fill="white" fontSize={9} textAnchor="middle"
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
                   {index + 1}
                 </text>
+
                 {/* Offset indicator */}
                 {(dx !== 0 || dy !== 0) && (
                   <text
-                    x={x + w + 4} y={y + 12}
-                    fill="#f59e0b" fontSize={10}
+                    x={x + w + 3} y={y + 11}
+                    fill="#f59e0b" fontSize={9} fontWeight="bold"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
                   >
                     {dx >= 0 ? '+' : ''}{dx},{dy >= 0 ? '+' : ''}{dy}
