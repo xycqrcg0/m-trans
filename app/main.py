@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app import worker
 from app.models import (
+    ConfigField,
     CreateTaskResponse,
     Glossary,
     GlossaryEntry,

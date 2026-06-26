@@ -44,6 +44,30 @@ const LLM_TRANSLATORS = new Set([
   'chatgpt', 'chatgpt_2stage', 'deepseek', 'groq', 'gemini',
   'gemini_2stage', 'custom_openai', 'sakura',
 ])
+
+// Short descriptions shown under the translator selector
+const _TRANSLATOR_DESC: Record<string, string> = {
+  google: '免费网页翻译，无需配置，质量一般',
+  youdao: '有道智云翻译，需要应用 ID 和密钥',
+  baidu: '百度翻译开放平台，需要 APP ID 和密钥',
+  deepl: 'DeepL 翻译，翻译质量较高，需要 Auth Key',
+  papago: 'Naver Papago 翻译，适合韩语/日语',
+  caiyun: '彩云小译，需要访问令牌',
+  chatgpt: 'OpenAI GPT 翻译，质量高，需要 API Key',
+  chatgpt_2stage: 'ChatGPT 两阶段翻译（先初翻再校对），质量更高但更慢',
+  none: '不翻译，仅擦字',
+  original: '保留原文，不做任何翻译',
+  sakura: '本地 LLM 翻译（Sakura 模型），需要本地部署推理服务',
+  deepseek: 'DeepSeek API 翻译，性价比高',
+  groq: 'Groq API 翻译，推理速度极快',
+  gemini: 'Google Gemini 翻译',
+  gemini_2stage: 'Gemini 两阶段翻译',
+  custom_openai: '自定义 OpenAI 兼容 API（如 Ollama、vLLM 等）',
+  sugoi: '离线翻译（Sugoi V4.0 模型），仅支持日→英，首次使用需下载模型',
+  jparacrawl: '离线翻译（JParaCrawl 基础模型），仅支持日↔英，首次使用需下载模型',
+  jparacrawl_big: '离线翻译（JParaCrawl 大模型），仅支持日↔英，首次使用需下载模型',
+}
+
 export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   const [langs, setLangs] = useState<OptionItem[]>(FALLBACK_LANGS)
   const [translators, setTranslators] = useState<TranslatorOption[]>(FALLBACK_TRANSLATORS)
@@ -95,12 +119,12 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
           </button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">目标语言</label>
             <Select value={config.target_lang ?? 'CHS'} onValueChange={(v) => onChange({ ...config, target_lang: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-60 overflow-y-auto">
                 {langs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -110,8 +134,8 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
             <div className="space-y-1.5">
               <label className="text-sm font-medium">翻译引擎</label>
               <Select value={config.translator ?? 'google'} onValueChange={(v) => onChange({ ...config, translator: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   {translators.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name}{t.requires_key && !t.configured ? ' ⚠️' : ''}
@@ -119,10 +143,13 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                   ))}
                 </SelectContent>
               </Select>
+              {selectedTranslator && (
+                <p className="text-xs text-slate-400">{_TRANSLATOR_DESC[selectedTranslator.id] ?? ''}</p>
+              )}
               {selectedTranslator?.requires_key && !selectedTranslator?.configured && (
                 <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
                   <AlertCircle className="h-3 w-3 shrink-0" />
-                  <span>该翻译引擎需要配置 API Key，</span>
+                  <span>该翻译引擎需要配置，</span>
                   <Link to="/settings" className="underline">去配置</Link>
                 </div>
               )}
@@ -130,8 +157,7 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                 <div className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1 text-xs text-red-600">
                   <AlertCircle className="h-3 w-3 shrink-0" />
                   <span>
-                    该翻译引擎不支持「{config.target_lang}」目标语言，仅支持：
-                    {selectedTranslator?.supported_langs?.join('、')}
+                    不支持「{config.target_lang}」，仅支持：{selectedTranslator?.supported_langs?.join('、')}
                   </span>
                 </div>
               )}
