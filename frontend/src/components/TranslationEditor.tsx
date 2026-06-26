@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Loader2, Check, AlertCircle, RotateCcw } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Loader2, Check, AlertCircle, RotateCcw, Eye, Edit3 } from 'lucide-react'
 import {
   getEditableBlocks,
   submitEdits,
+  renderPreview,
   type EditablePage,
 } from '@/lib/api'
 import { PositionOverlay } from '@/components/PositionOverlay'
@@ -23,6 +24,9 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [previewMode, setPreviewMode] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   useEffect(() => {
     getEditableBlocks(taskId)
@@ -90,6 +94,25 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
       return { ...prev, [pageKey]: po }
     })
   }
+  const updatePreview = useCallback(async () => {
+    if (!currentPage) return
+    setPreviewLoading(true)
+    try {
+      const texts = currentPage.text_blocks.map((b, i) =>
+        getEditText(i, b.polished_text || b.translated_text),
+      )
+      const offs = currentPage.text_blocks.map((_, i) => {
+        const o = pageOffsets[i] ?? [0, 0]
+        return [o[0], o[1]]
+      })
+      const url = await renderPreview(taskId, pageIdx, texts, offs)
+      setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return url })
+    } catch {
+      setError('预览渲染失败')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }, [currentPage, pageOffsets, taskId, pageIdx])
 
   async function handleSubmit() {
     setSubmitting(true)
@@ -147,24 +170,57 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
         </div>
       )}
 
-      {/* Image with overlays */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-        <PositionOverlay
-          imageUrl={imageUrl}
-          blocks={currentPage.text_blocks}
-          offsets={pageOffsets}
-          textEdits={edits[pageKey] ?? {}}
-          selectedIdx={selected}
-          onSelect={setSelected}
-          onOffsetChange={handleOffsetChange}
-          imageNaturalSize={imgSize}
-        />
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setPreviewMode(false)}
+          className={`flex items-center gap-1 rounded-md px-3 py-1 text-sm ${!previewMode ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <Edit3 className="h-3.5 w-3.5" />编辑
+        </button>
+        <button
+          onClick={async () => {
+            setPreviewMode(true)
+            await updatePreview()
+          }}
+          className={`flex items-center gap-1 rounded-md px-3 py-1 text-sm ${previewMode ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <Eye className="h-3.5 w-3.5" />预览最终效果
+        </button>
+        {previewLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
       </div>
 
-      <p className="text-xs text-slate-400">
-        图上方框为文字块位置，拖拽方框可微调嵌入位置。点击方框选中后在下方编辑译文。
-      </p>
+      {/* Image display: overlay mode or preview mode */}
+      {previewMode ? (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          {previewUrl ? (
+            <img src={previewUrl} alt="预览" className="w-full block" />
+          ) : (
+            <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+              {previewLoading ? '渲染中…' : '点击「预览最终效果」查看'}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          <PositionOverlay
+            imageUrl={imageUrl}
+            blocks={currentPage.text_blocks}
+            offsets={pageOffsets}
+            textEdits={edits[pageKey] ?? {}}
+            selectedIdx={selected}
+            onSelect={setSelected}
+            onOffsetChange={handleOffsetChange}
+            imageNaturalSize={imgSize}
+          />
+        </div>
+      )}
 
+      <p className="text-xs text-slate-400">
+        {previewMode
+          ? '此为最终渲染效果预览。切回编辑模式可继续调整。'
+          : '图上方框为文字块位置，拖拽方框可微调嵌入位置。点击方框选中后在下方编辑译文。'}
+      </p>
       {/* Text editing panel for selected block */}
       {selected !== null && currentPage.text_blocks[selected] ? (
         <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">

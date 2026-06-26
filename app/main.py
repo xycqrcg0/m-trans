@@ -354,6 +354,63 @@ async def get_editable_blocks(task_id: str):
         ],
     }
 
+@app.post("/api/tasks/{task_id}/preview", summary="预览渲染（不保存）")
+async def preview_render(task_id: str, payload: dict):
+    """Render a preview image with edited texts and offsets. Returns PNG.
+    Does not save results — purely for live preview during editing.
+    """
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    import pickle as _pk
+    from app.pipeline import render_pipeline
+
+    page_idx = int(payload.get("page_index", 0))
+    texts = payload.get("texts", [])
+    offsets_raw = payload.get("offsets", [])
+
+    result_dir = settings.result_dir / task.id
+    ctx_path = result_dir / f"page_{page_idx:04d}_ctx.pkl"
+    if not ctx_path.exists():
+        raise HTTPException(status_code=404, detail="预览数据不存在")
+
+    with open(ctx_path, "rb") as f:
+        ctx = _pk.load(f)
+
+    # Apply edits and offsets
+    import numpy as _np
+    text_regions = ctx.get("text_regions") or []
+    for i, region in enumerate(text_regions):
+        if i < len(texts) and texts[i]:
+            region.translation = texts[i]
+        if i < len(offsets_raw) and len(offsets_raw[i]) >= 2:
+            dx, dy = int(offsets_raw[i][0]), int(offsets_raw[i][1])
+            if dx != 0 or dy != 0:
+                region.lines = _np.array(region.lines, dtype=_np.int32)
+                region.lines[:, :, 0] += dx
+                region.lines[:, :, 1] += dy
+                region.center = _np.array(region.center, dtype=_np.float64)
+                region.center[0] += dx
+                region.center[1] += dy
+                for prop in ("unrotated_min_rect", "min_rect", "unrotated_size",
+                             "unrotated_polygons", "polygon_aspect_ratio",
+                             "aspect_ratio", "_bounding_rect"):
+                    region.__dict__.pop(prop, None)
+
+    # Render preview
+    loop = asyncio.get_running_loop()
+    def _do_render():
+        return asyncio.run(render_pipeline(ctx, task.config))
+    ctx = await loop.run_in_executor(worker._EXECUTOR, _do_render)
+
+    import io
+    buf = io.BytesIO()
+    ctx["result"].save(buf, format="PNG")
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="image/png")
+
+
 @app.post("/api/tasks/{task_id}/edit", summary="提交编辑后的翻译并渲染")
 async def submit_edits(task_id: str, edits: dict):
     """Submit edited translations and optional position offsets, then render.
