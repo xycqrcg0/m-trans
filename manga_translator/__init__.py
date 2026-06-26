@@ -8,7 +8,7 @@ from .glossary import (
     load_glossary,
     load_glossary_mapping,
     create_glossary,
-    update_entries,
+    add_entry,
     delete_entry,
     delete_glossary,
     list_glossaries,

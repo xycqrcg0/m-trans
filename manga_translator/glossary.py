@@ -179,6 +179,9 @@ def add_entry(glossary_id: str, source: str, target: str, note: str = "") -> Glo
     _save(g)
     return g
 
+
+def delete_entry(glossary_id: str, source: str) -> Glossary:
+    """Remove a single entry by source text."""
     g = load_glossary(glossary_id)
     if g is None:
         raise ValueError(f"Glossary '{glossary_id}' does not exist")
