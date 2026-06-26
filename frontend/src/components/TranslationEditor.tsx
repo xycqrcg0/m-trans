@@ -1,22 +1,24 @@
-import { useEffect, useState, useRef } from 'react'
-import { Loader2, Check, AlertCircle, RotateCcw, Eye, Edit3 } from 'lucide-react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { Loader2, Check, AlertCircle, RotateCcw } from 'lucide-react'
 import {
   getEditableBlocks,
   submitEdits,
   renderPreview,
+  getInpaintedUrl,
   type EditablePage,
 } from '@/lib/api'
-import { PositionOverlay } from '@/components/PositionOverlay'
+import { PositionCanvas } from '@/components/PositionCanvas'
 
 interface TranslationEditorProps {
   taskId: string
-  imageUrl: string
+  pageIndex: number
   onCompleted: () => void
 }
 
-export function TranslationEditor({ taskId, imageUrl, onCompleted }: TranslationEditorProps) {
+const RENDER_DEBOUNCE_MS = 600
+
+export function TranslationEditor({ taskId, pageIndex, onCompleted }: TranslationEditorProps) {
   const [pages, setPages] = useState<EditablePage[]>([])
-  const [pageIdx] = useState(0)
   const [edits, setEdits] = useState<Record<string, Record<number, string>>>({})
   const [offsets, setOffsets] = useState<Record<string, Record<number, [number, number]>>>({})
   const [selected, setSelected] = useState<number | null>(null)
@@ -24,11 +26,18 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [previewMode, setPreviewMode] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Backend-rendered DEFAULT embedding (text at original positions, no offsets).
+  // Refreshed when text content changes; offsets never trigger a re-render.
+  const [renderedUrl, setRenderedUrl] = useState<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clean (text-erased) base image, used by the canvas to erase-in-place.
+  const inpaintedUrl = getInpaintedUrl(taskId, pageIndex + 1)
+
   useEffect(() => {
+    setLoading(true)
+    setError(null)
     getEditableBlocks(taskId)
       .then((res) => {
         setPages(res.pages)
@@ -40,36 +49,13 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
       })
   }, [taskId])
 
-  // Preload image natural size
-  useEffect(() => {
-    const img = new Image()
-    img.onload = () => setImgSize({ w: img.naturalWidth, h: img.naturalHeight })
-    img.src = imageUrl
-  }, [imageUrl])
-
-  if (loading) return (
-    <div className="flex items-center justify-center py-8 text-sm text-slate-400">
-      <Loader2 className="mr-2 h-4 w-4 animate-spin" />加载可编辑文本…
-    </div>
-  )
-
-  if (error) return (
-    <div className="flex items-center gap-2 py-8 text-sm text-red-500">
-      <AlertCircle className="h-4 w-4" />{error}
-    </div>
-  )
-
-  if (pages.length === 0) return (
-    <div className="py-8 text-center text-sm text-slate-400">没有可编辑的文本块</div>
-  )
-
-  const currentPage = pages[pageIdx]
-  const pageKey = String(pageIdx)
+  const pageKey = String(pageIndex)
+  const currentPage = pages.find(p => p.page_index === pageIndex) ?? null
   const pageOffsets = offsets[pageKey] ?? {}
 
-  function getEditText(bIdx: number, fallback: string): string {
-    return edits[pageKey]?.[bIdx] ?? fallback
-  }
+  const getEditText = useCallback((bIdx: number, fallback: string): string => (
+    edits[pageKey]?.[bIdx] ?? fallback
+  ), [edits, pageKey])
 
   function setEditText(bIdx: number, text: string) {
     setEdits(prev => ({ ...prev, [pageKey]: { ...(prev[pageKey] ?? {}), [bIdx]: text } }))
@@ -82,11 +68,6 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     }))
   }
 
-  function useOriginal(bIdx: number) {
-    const block = currentPage.text_blocks[bIdx]
-    if (block) setEditText(bIdx, block.translated_text || block.polished_text)
-  }
-
   function resetOffset(bIdx: number) {
     setOffsets(prev => {
       const po = { ...(prev[pageKey] ?? {}) }
@@ -94,31 +75,62 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
       return { ...prev, [pageKey]: po }
     })
   }
-  async function updatePreview() {
+
+  /**
+   * Ask the backend to render the DEFAULT embedding for the current page
+   * (current text content, zero offsets). This is the picture the canvas then
+   * moves pixels on top of. Called on first load and when text content changes;
+   * NEVER on position drags — those are pure client-side pixel offsets.
+   */
+  const renderDefault = useCallback(async () => {
     if (!currentPage) return
-    setPreviewLoading(true)
+    setRendering(true)
     try {
       const texts = currentPage.text_blocks.map((b, i) =>
         getEditText(i, b.polished_text || b.translated_text),
       )
-      const offs = currentPage.text_blocks.map((_, i) => {
-        const o = pageOffsets[i] ?? [0, 0]
-        return [o[0], o[1]]
-      })
-      const url = await renderPreview(taskId, pageIdx, texts, offs)
-      setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return url })
+      const offs = currentPage.text_blocks.map(() => [0, 0])
+      const url = await renderPreview(taskId, pageIndex, texts, offs)
+      setRenderedUrl(old => { if (old) URL.revokeObjectURL(old); return url })
     } catch {
       setError('预览渲染失败')
     } finally {
-      setPreviewLoading(false)
+      setRendering(false)
     }
+  }, [currentPage, getEditText, taskId, pageIndex])
+
+  // Preload natural size from the inpainted image (geometry reference).
+  useEffect(() => {
+    const img = new Image()
+    img.onload = () => setImgSize({ w: img.naturalWidth, h: img.naturalHeight })
+    img.src = inpaintedUrl
+  }, [inpaintedUrl])
+
+  // First render of the default embedding once blocks are available.
+  useEffect(() => {
+    if (currentPage && !renderedUrl) void renderDefault()
+  }, [currentPage, renderedUrl, renderDefault])
+
+  // Page switch: drop the stale render (different geometry) and selection.
+  useEffect(() => {
+    setRenderedUrl(old => { if (old) URL.revokeObjectURL(old); return null })
+    setSelected(null)
+  }, [pageIndex])
+
+  function scheduleRender() {
+    clearTimeout(renderTimer.current)
+    renderTimer.current = setTimeout(() => void renderDefault(), RENDER_DEBOUNCE_MS)
   }
 
+  // Text content changes → debounced backend re-render of the default picture.
+  useEffect(() => {
+    if (currentPage && renderedUrl !== null) scheduleRender()
+    return () => clearTimeout(renderTimer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edits])
 
-  function debouncedPreview() {
-    if (previewTimer.current) clearTimeout(previewTimer.current)
-    previewTimer.current = setTimeout(() => updatePreview(), 800)
-  }
+  // Revoke object URL on unmount.
+  useEffect(() => () => { if (renderedUrl) URL.revokeObjectURL(renderedUrl) }, [renderedUrl])
 
   async function handleSubmit() {
     setSubmitting(true)
@@ -128,7 +140,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     for (const page of pages) {
       const pk = String(page.page_index)
       textPayload[pk] = page.text_blocks.map((b, i) =>
-        getEditTextFor(page.page_index, i, b.polished_text || b.translated_text),
+        edits[pk]?.[i] ?? (b.polished_text || b.translated_text),
       )
       const po = offsets[pk] ?? {}
       if (Object.keys(po).length > 0) {
@@ -147,9 +159,25 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     }
   }
 
-  function getEditTextFor(pIdx: number, bIdx: number, fallback: string): string {
-    return edits[String(pIdx)]?.[bIdx] ?? fallback
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-8 text-sm text-slate-400">
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />加载可编辑文本…
+    </div>
+  )
+
+  if (error && !currentPage) return (
+    <div className="flex items-center gap-2 py-8 text-sm text-red-500">
+      <AlertCircle className="h-4 w-4" />{error}
+    </div>
+  )
+
+  if (pages.length === 0) return (
+    <div className="py-8 text-center text-sm text-slate-400">没有可编辑的文本块</div>
+  )
+
+  if (!currentPage) return (
+    <div className="py-8 text-center text-sm text-slate-400">该页无可编辑文本块</div>
+  )
 
   const editedCount = Object.values(edits).reduce((s, pe) => s + Object.keys(pe).length, 0)
   const offsetCount = Object.values(offsets).reduce((s, pe) =>
@@ -159,7 +187,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">
-          编辑翻译{editedCount > 0 && `（${editedCount} 处文字修改）`}{offsetCount > 0 && `（${offsetCount} 处位置微调）`}
+          嵌字前编辑{editedCount > 0 && `（${editedCount} 处文字修改）`}{offsetCount > 0 && `（${offsetCount} 处位置微调）`}
         </h2>
         <button
           onClick={handleSubmit}
@@ -176,46 +204,32 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
         </div>
       )}
 
-      {/* Mode toggle */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setPreviewMode(false)}
-          className={`flex items-center gap-1 rounded-md px-3 py-1 text-sm ${!previewMode ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <Edit3 className="h-3.5 w-3.5" />编辑
-        </button>
-        <button
-          onClick={async () => {
-            setPreviewMode(true)
-            await updatePreview()
-          }}
-          className={`flex items-center gap-1 rounded-md px-3 py-1 text-sm ${previewMode ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <Eye className="h-3.5 w-3.5" />预览最终效果
-        </button>
-        {previewLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
-      </div>
-
-      {/* Image: overlay on inpainted (edit) or rendered preview */}
+      {/* Pixel-true editor: default render on top, dragged blocks moved client-side */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-        <PositionOverlay
-          imageUrl={previewMode && previewUrl ? previewUrl : imageUrl}
-          blocks={currentPage.text_blocks}
-          offsets={pageOffsets}
-          textEdits={edits[pageKey] ?? {}}
-          selectedIdx={selected}
-          onSelect={setSelected}
-          onOffsetChange={handleOffsetChange}
-          onDragEnd={() => { if (previewMode) debouncedPreview() }}
-          imageNaturalSize={imgSize}
-        />
+        {renderedUrl ? (
+          <PositionCanvas
+            inpaintedUrl={inpaintedUrl}
+            renderedUrl={renderedUrl}
+            blocks={currentPage.text_blocks}
+            offsets={pageOffsets}
+            selectedIdx={selected}
+            onSelect={setSelected}
+            onOffsetChange={handleOffsetChange}
+            onDragEnd={() => { /* pure client-side; nothing to refresh */ }}
+            imageNaturalSize={imgSize}
+            rendering={rendering}
+          />
+        ) : (
+          <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />渲染默认嵌字效果…
+          </div>
+        )}
       </div>
 
       <p className="text-xs text-slate-400">
-        {previewMode
-          ? '拖拽方框调整位置后自动重新渲染最终效果。'
-          : '图上方框为文字块位置，拖拽方框可微调嵌入位置。点击方框选中后在下方编辑译文。切到「预览最终效果」查看实际渲染。'}
+        图上文字即后端实时渲染的最终嵌字效果。拖拽方框微调位置时，前端直接平移该文字块的真实像素，无需重新渲染；修改译文内容后自动重新渲染底图。完成后点击「提交并嵌字」由后端按偏移量最终嵌字。
       </p>
+
       {/* Text editing panel for selected block */}
       {selected !== null && currentPage.text_blocks[selected] ? (
         <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
@@ -230,7 +244,13 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
                   </button>
                 ) : null
               })()}
-              <button onClick={() => useOriginal(selected)} className="text-xs text-slate-400 hover:text-slate-700">恢复初翻</button>
+              <button
+                onClick={() => {
+                  const block = currentPage.text_blocks[selected]
+                  if (block) setEditText(selected, block.translated_text || block.polished_text)
+                }}
+                className="text-xs text-slate-400 hover:text-slate-700"
+              >恢复初翻</button>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">

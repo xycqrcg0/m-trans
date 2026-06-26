@@ -30,7 +30,6 @@ export default function TaskDetail() {
   if (task.status === 'awaiting_edit') {
     const page = task.pages[pageIdx]
     const totalPages = task.pages.length
-    const inpaintedUrl = getInpaintedUrl(task.id, pageIdx + 1)
 
     return (
       <div className="mx-auto max-w-4xl space-y-5 p-6">
@@ -66,7 +65,7 @@ export default function TaskDetail() {
           </div>
         )}
 
-        <TranslationEditor taskId={task.id} imageUrl={inpaintedUrl} onCompleted={refresh} />
+        <TranslationEditor taskId={task.id} pageIndex={pageIdx} onCompleted={refresh} />
       </div>
     )
   }

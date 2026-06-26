@@ -53,13 +53,11 @@ cert.pem
 key.pem
 
 # Model weights (too large for git; download separately)
-models/
+/models
 
 /tmp
 
 /docs
 
 # Backend runtime storage
-storage/uploads/
-storage/results/
-storage/tasks/
+/storage
