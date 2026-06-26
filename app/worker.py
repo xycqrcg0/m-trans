@@ -359,7 +359,7 @@ def render_edited_task(task: Task, edited_texts: dict[int, list[str]]) -> None:
         _persist(TaskStatus.done)
         cleanup_task_temp_files(task)
     except Exception as exc:
-        logger.exception("Task %s render failed", task.id)
+        logger.error("Task %s render failed: %s", task.id, exc)
         task.error = str(exc)
         _persist(TaskStatus.failed)
     finally:
@@ -385,8 +385,8 @@ async def task_runner() -> None:
         try:
             progress_queues[task.id] = Queue()
             await loop.run_in_executor(_EXECUTOR, _execute_task_blocking, task)
-        except Exception:
-            logger.exception("Unhandled error in task runner")
+        except Exception as e:
+            logger.error("Unhandled error in task runner: %s", e)
         finally:
             _task_queue.task_done()
 

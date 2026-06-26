@@ -83,8 +83,8 @@ class GoogleDirectTranslator(CommonTranslator):
                         if not translated:
                             translated = text
                         break
-                    except Exception:
-                        self.logger.exception("Google Direct attempt %d failed for %r", attempt + 1, text)
+                    except Exception as e:
+                        self.logger.warning("Google Direct attempt %d failed for %r: %s", attempt + 1, text, e)
                         await asyncio.sleep(0.5)
 
                 results.append(translated)

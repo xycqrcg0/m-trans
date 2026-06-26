@@ -158,7 +158,7 @@ async def _call_claude(
     except httpx.TimeoutException:
         logger.error("Claude API timeout after %ds", timeout_s)
     except Exception as e:
-        logger.exception("Claude API unexpected error: %s", e)
+        logger.error("Claude API unexpected error: %s", e)
     return None
 
 

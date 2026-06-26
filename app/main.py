@@ -590,7 +590,13 @@ _TRANSLATOR_ENV_MAP = {
     for tid, (name, fields) in _TRANSLATOR_CONFIG_META.items()
 }
 
-# Translators that don't need any configuration
+# LLM polish config (separate from translators)
+_POLISH_CONFIG_META = {
+    "anthropic": ("LLM 润色 (Claude)", [
+        ("ANTHROPIC_API_KEY", "Anthropic API Key", "password", True),
+    ]),
+}
+
 _NO_CONFIG_TRANSLATORS = {"google", "none", "original", "sugoi", "jparacrawl", "jparacrawl_big"}
 
 
@@ -626,16 +632,36 @@ async def get_translator_configs():
             translator=tid, display_name=display_name,
             fields=fields, configured=all_required_set,
         ))
+    # Also include polish LLM config
+    for tid, (display_name, fields_meta) in _POLISH_CONFIG_META.items():
+        fields = []
+        all_required_set = True
+        for env_var, label, ftype, required in fields_meta:
+            val = os.environ.get(env_var, "")
+            if required and not val:
+                all_required_set = False
+            if val and ftype == "password":
+                val_display = val[:4] + "***" if len(val) > 4 else ("***" if val else "")
+            else:
+                val_display = val
+            fields.append(ConfigField(
+                env_var=env_var, label=label, field_type=ftype,
+                required=required, value=val_display,
+            ))
+        result.append(TranslatorConfigItem(
+            translator=tid, display_name=display_name,
+            fields=fields, configured=all_required_set,
+        ))
     return result
 
 
 @app.post("/api/config/translator", summary="保存翻译器配置")
 async def save_translator_config(payload: dict):
     tid = (payload or {}).get("translator", "").strip()
-    if tid not in _TRANSLATOR_CONFIG_META:
-        raise HTTPException(status_code=422, detail=f"不支持的翻译器：{tid}")
+    if tid not in _TRANSLATOR_CONFIG_META and tid not in _POLISH_CONFIG_META:
+        raise HTTPException(status_code=422, detail=f"不支持的配置项：{tid}")
 
-    _display_name, fields_meta = _TRANSLATOR_CONFIG_META[tid]
+    _display_name, fields_meta = (_TRANSLATOR_CONFIG_META.get(tid) or _POLISH_CONFIG_META.get(tid))
     env_path = settings.glossary_dir.parent / ".env"
     env_lines: list[str] = []
     if env_path.exists():
