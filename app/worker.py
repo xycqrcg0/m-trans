@@ -369,7 +369,13 @@ def render_edited_task(
                         region.center = np.array(region.center, dtype=np.float64)
                         region.center[0] += dx
                         region.center[1] += dy
-                # Update text_blocks model too
+                        # Invalidate cached properties that depend on lines/center.
+                        # Without this, unrotated_min_rect / min_rect / unrotated_size
+                        # return stale pre-offset values and the offset has no effect.
+                        for prop in ("unrotated_min_rect", "min_rect", "unrotated_size",
+                                     "unrotated_polygons", "polygon_aspect_ratio",
+                                     "aspect_ratio", "_bounding_rect"):
+                            region.__dict__.pop(prop, None)
                 if i < len(page.text_blocks):
                     page.text_blocks[i].polished_text = getattr(region, "translation", "") or ""
 
