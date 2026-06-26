@@ -287,7 +287,7 @@ def _execute_task_blocking(task: Task) -> None:
         task.error = "任务已取消"
         _persist(TaskStatus.cancelled)
     except Exception as exc:
-        logger.exception("Task %s failed", task.id)
+        logger.error("Task %s failed: %s", task.id, exc)
         task.error = str(exc)
         _persist(TaskStatus.failed)
     finally:

@@ -46,14 +46,18 @@ def setup_logging() -> None:
     root.addHandler(console_handler)
 
     # Reduce noise from libraries
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    # manga_translator uses logging too — make sure it propagates
-    logging.getLogger("manga_translator").setLevel(logging.INFO)
+    for name in ("urllib3", "httpx", "httpcore", "openai", "matplotlib",
+                  "uvicorn.access", "asyncio"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
+    # OCR prints one line per text block (prob, fg/bg colors) — too verbose
+    logging.getLogger("manga-translator.Model48pxOCR").setLevel(logging.WARNING)
+    logging.getLogger("manga-translator.Model32pxOCR").setLevel(logging.WARNING)
+    logging.getLogger("manga-translator.MangaOCR").setLevel(logging.WARNING)
+
+    # manga_translator library — keep stage progress but suppress per-block detail
+    logging.getLogger("manga_translator").setLevel(logging.INFO)
+    logging.getLogger("manga-translator").setLevel(logging.INFO)
 
 def cleanup_old_logs() -> None:
     """Remove log files older than the retention period."""
