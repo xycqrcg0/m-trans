@@ -230,8 +230,16 @@ def _execute_task_blocking(task: Task) -> None:
             if inpainted_data is not None:
                 Image.fromarray(inpainted_data).save(inpainted_path)
 
-            page.inpainted_path = str(inpainted_path) if inpainted_path.exists() else ""
             page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
+
+            # Validate: if text was detected but all translations are empty,
+            # the translation failed (e.g. API timeout). Don't mark as done.
+            if not interactive and page.text_blocks:
+                has_translation = any(b.polished_text or b.translated_text for b in page.text_blocks)
+                if not has_translation:
+                    raise RuntimeError(
+                        f"第 {page_idx + 1} 页翻译失败：所有文本块译文为空（可能是 API 超时或配置错误）"
+                    )
 
             if interactive:
                 # Persist ctx for later rendering; save inpainted as placeholder result

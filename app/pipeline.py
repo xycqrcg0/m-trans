@@ -53,7 +53,7 @@ async def get_translator() -> MangaTranslator:
                 {
                     "use_gpu": settings.use_gpu,
                     "kernel_size": 3,
-                    "ignore_errors": True,
+                    "ignore_errors": False,
                     "pre_dict": str(_PRE_DICT),
                     "post_dict": str(_POST_DICT),
                 }
