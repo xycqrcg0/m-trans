@@ -229,8 +229,9 @@ def _execute_task_blocking(task: Task) -> None:
                 inpainted_data = ctx.get("img_inpainted")
             if inpainted_data is not None:
                 Image.fromarray(inpainted_data).save(inpainted_path)
-
-            page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
+                page.inpainted_path = str(inpainted_path)
+            else:
+                page.inpainted_path = ""
 
             # Validate: if text was detected but all translations are empty,
             # the translation failed (e.g. API timeout). Don't mark as done.
