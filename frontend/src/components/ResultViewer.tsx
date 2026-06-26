@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider'
 import { X } from 'lucide-react'
 import type { TextBlockResult } from '@/lib/api'
 
@@ -10,29 +11,30 @@ interface ResultViewerProps {
 
 export function ResultViewer({ originalUrl, resultUrl, textBlocks }: ResultViewerProps) {
   const [lightbox, setLightbox] = useState(false)
-  const [lightboxSrc, setLightboxSrc] = useState('')
 
   return (
     <div className="space-y-6">
-      {/* Side-by-side comparison */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-500">擦字图</p>
-          <div
-            className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 cursor-zoom-in"
-            onClick={() => { setLightboxSrc(originalUrl); setLightbox(true) }}
-          >
-            <img src={originalUrl} alt="擦字图" className="w-full" />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-500">译图</p>
-          <div
-            className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 cursor-zoom-in"
-            onClick={() => { setLightboxSrc(resultUrl); setLightbox(true) }}
-          >
-            <img src={resultUrl} alt="译图" className="w-full" />
-          </div>
+      <div className="relative overflow-hidden rounded-lg border border-slate-200">
+        <ReactCompareSlider
+          style={{ width: '100%' }}
+          itemOne={
+            <ReactCompareSliderImage
+              src={originalUrl}
+              alt="擦字图"
+              style={{ objectFit: 'contain', width: '100%', height: 'auto', display: 'block' }}
+            />
+          }
+          itemTwo={
+            <ReactCompareSliderImage
+              src={resultUrl}
+              alt="译图"
+              style={{ objectFit: 'contain', width: '100%', height: 'auto', display: 'block' }}
+            />
+          }
+        />
+        <div className="flex justify-between bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
+          <span>← 擦字图</span>
+          <span>译图 →</span>
         </div>
       </div>
 
@@ -75,8 +77,8 @@ export function ResultViewer({ originalUrl, resultUrl, textBlocks }: ResultViewe
             <X className="h-5 w-5" />
           </button>
           <img
-            src={lightboxSrc}
-            alt="大图"
+            src={resultUrl}
+            alt="译图大图"
             className="max-h-full max-w-full object-contain"
             onClick={(e) => e.stopPropagation()}
           />
