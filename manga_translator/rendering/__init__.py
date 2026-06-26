@@ -221,9 +221,9 @@ import os as _os
 # Font paths for different text categories
 _FONT_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))), 'fonts')
 _FONTS = {
-    'default': _os.path.join(_FONT_DIR, 'Arial-Unicode-Regular.ttf'),
-    'comic': _os.path.join(_FONT_DIR, 'anime_ace_3.ttf'),
-    'mono': _os.path.join(_FONT_DIR, 'msgothic.ttc'),
+    'default': _os.path.join(_FONT_DIR, 'msyh.ttc'),
+    'comic': _os.path.join(_FONT_DIR, 'comic shanns 2.ttf'),
+    'sfx': _os.path.join(_FONT_DIR, 'anime_ace_3.ttf'),
 }
 
 def _select_region_font(region, default_font: str) -> str:
@@ -245,9 +245,9 @@ def _select_region_font(region, default_font: str) -> str:
 
     # Large font + short text = likely SFX → use comic font
     if font_size > 40 and num_chars <= 6:
-        comic = _FONTS.get('comic', '')
-        if comic and _os.path.exists(comic):
-            return comic
+        sfx_font = _FONTS.get('sfx', '')
+        if sfx_font and _os.path.exists(sfx_font):
+            return sfx_font
 
     return default_font
 
