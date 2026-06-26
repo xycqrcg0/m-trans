@@ -9,6 +9,7 @@ interface PositionOverlayProps {
   selectedIdx: number | null
   onSelect: (idx: number | null) => void
   onOffsetChange: (idx: number, dx: number, dy: number) => void
+  onDragEnd: () => void
   imageNaturalSize: { w: number; h: number }
 }
 
@@ -45,6 +46,7 @@ export function PositionOverlay({
   selectedIdx,
   onSelect,
   onOffsetChange,
+  onDragEnd,
   imageNaturalSize,
 }: PositionOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -73,7 +75,10 @@ export function PositionOverlay({
     onOffsetChange(dragging.idx, Math.round(dragging.baseDx + deltaPxX), Math.round(dragging.baseDy + deltaPxY))
   }, [dragging, scale, onOffsetChange])
 
-  const handleMouseUp = useCallback(() => setDragging(null), [])
+  const handleMouseUp = useCallback(() => {
+    if (dragging) onDragEnd()
+    setDragging(null)
+  }, [dragging, onDragEnd])
 
   const validBlocks = blocks
     .map((block, index) => ({ block, index }))

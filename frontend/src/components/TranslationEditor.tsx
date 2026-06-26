@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Loader2, Check, AlertCircle, RotateCcw, Eye, Edit3 } from 'lucide-react'
 import {
   getEditableBlocks,
@@ -114,6 +114,13 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     }
   }
 
+  // Debounced preview: trigger 800ms after last drag
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function debouncedPreview() {
+    if (previewTimer.current) clearTimeout(previewTimer.current)
+    previewTimer.current = setTimeout(() => updatePreview(), 800)
+  }
+
   async function handleSubmit() {
     setSubmitting(true)
     setError(null)
@@ -190,36 +197,25 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
         {previewLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
       </div>
 
-      {/* Image display: overlay mode or preview mode */}
-      {previewMode ? (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-          {previewUrl ? (
-            <img src={previewUrl} alt="预览" className="w-full block" />
-          ) : (
-            <div className="flex h-48 items-center justify-center text-sm text-slate-400">
-              {previewLoading ? '渲染中…' : '点击「预览最终效果」查看'}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-          <PositionOverlay
-            imageUrl={imageUrl}
-            blocks={currentPage.text_blocks}
-            offsets={pageOffsets}
-            textEdits={edits[pageKey] ?? {}}
-            selectedIdx={selected}
-            onSelect={setSelected}
-            onOffsetChange={handleOffsetChange}
-            imageNaturalSize={imgSize}
-          />
-        </div>
-      )}
+      {/* Image: overlay on inpainted (edit) or rendered preview */}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <PositionOverlay
+          imageUrl={previewMode && previewUrl ? previewUrl : imageUrl}
+          blocks={currentPage.text_blocks}
+          offsets={pageOffsets}
+          textEdits={edits[pageKey] ?? {}}
+          selectedIdx={selected}
+          onSelect={setSelected}
+          onOffsetChange={handleOffsetChange}
+          onDragEnd={() => { if (previewMode) debouncedPreview() }}
+          imageNaturalSize={imgSize}
+        />
+      </div>
 
       <p className="text-xs text-slate-400">
         {previewMode
-          ? '此为最终渲染效果预览。切回编辑模式可继续调整。'
-          : '图上方框为文字块位置，拖拽方框可微调嵌入位置。点击方框选中后在下方编辑译文。'}
+          ? '拖拽方框调整位置后自动重新渲染最终效果。'
+          : '图上方框为文字块位置，拖拽方框可微调嵌入位置。点击方框选中后在下方编辑译文。切到「预览最终效果」查看实际渲染。'}
       </p>
       {/* Text editing panel for selected block */}
       {selected !== null && currentPage.text_blocks[selected] ? (
