@@ -27,7 +27,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
   const [previewMode, setPreviewMode] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
-
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     getEditableBlocks(taskId)
       .then((res) => {
@@ -114,8 +114,7 @@ export function TranslationEditor({ taskId, imageUrl, onCompleted }: Translation
     }
   }
 
-  // Debounced preview: trigger 800ms after last drag
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   function debouncedPreview() {
     if (previewTimer.current) clearTimeout(previewTimer.current)
     previewTimer.current = setTimeout(() => updatePreview(), 800)
