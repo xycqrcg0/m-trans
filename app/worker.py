@@ -247,6 +247,7 @@ def _execute_task_blocking(task: Task) -> None:
             else:
                 page.inpainted_path = ""
 
+            page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
             # Validate: if text was detected but all translations are empty,
             # the translation failed (e.g. API timeout). Don't mark as done.
             if not interactive and page.text_blocks:
