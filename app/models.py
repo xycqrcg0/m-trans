@@ -47,7 +47,10 @@ class TextBlockResult(BaseModel):
     original_text: str = ""
     translated_text: str = ""
     polished_text: str = ""
-
+    # Center coordinates for position adjustment in interactive edit
+    center: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
+    # Original bounding box size (width, height) for display
+    size: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
 
 class Page(BaseModel):
     filename: str

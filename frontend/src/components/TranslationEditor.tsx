@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Check, AlertCircle } from 'lucide-react'
+import { Loader2, Check, AlertCircle, Move } from 'lucide-react'
 import {
   getEditableBlocks,
   submitEdits,
@@ -15,6 +15,7 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
   const [pages, setPages] = useState<EditablePage[]>([])
   const [pageIdx, setPageIdx] = useState(0)
   const [edits, setEdits] = useState<Record<string, Record<number, string>>>({})
+  const [offsets, setOffsets] = useState<Record<string, Record<number, [number, number]>>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,38 +49,71 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
   )
 
   const currentPage = pages[pageIdx]
-  const pageEdits = edits[String(pageIdx)] ?? {}
   const totalPages = pages.length
 
-  function getEditText(pageIdx: number, blockIdx: number, fallback: string): string {
-    return edits[String(pageIdx)]?.[blockIdx] ?? fallback
+  function getEditText(pIdx: number, bIdx: number, fallback: string): string {
+    return edits[String(pIdx)]?.[bIdx] ?? fallback
   }
 
-  function setEditText(pageIdx: number, blockIdx: number, text: string) {
+  function setEditText(pIdx: number, bIdx: number, text: string) {
     setEdits((prev) => ({
       ...prev,
-      [pageIdx]: { ...(prev[String(pageIdx)] ?? {}), [blockIdx]: text },
+      [pIdx]: { ...(prev[String(pIdx)] ?? {}), [bIdx]: text },
     }))
   }
 
-  // "Use original" = fill with translated_text (pre-polish)
-  function useOriginal(blockIdx: number) {
-    const block = currentPage.text_blocks[blockIdx]
-    if (block) setEditText(pageIdx, blockIdx, block.translated_text || block.polished_text)
+  function getOffset(pIdx: number, bIdx: number): [number, number] {
+    return offsets[String(pIdx)]?.[bIdx] ?? [0, 0]
+  }
+
+  function setOffset(pIdx: number, bIdx: number, axis: 0 | 1, val: number) {
+    setOffsets((prev) => {
+      const pageOffsets = prev[String(pIdx)] ?? {}
+      const current = pageOffsets[bIdx] ?? [0, 0]
+      const next: [number, number] = [...current] as [number, number]
+      next[axis] = val
+      return {
+        ...prev,
+        [pIdx]: { ...pageOffsets, [bIdx]: next },
+      }
+    })
+  }
+
+  function useOriginal(bIdx: number) {
+    const block = currentPage.text_blocks[bIdx]
+    if (block) setEditText(pageIdx, bIdx, block.translated_text || block.polished_text)
+  }
+
+  function resetOffset(bIdx: number) {
+    setOffsets((prev) => {
+      const pageOffsets = { ...(prev[String(pageIdx)] ?? {}) }
+      delete pageOffsets[bIdx]
+      return { ...prev, [String(pageIdx)]: pageOffsets }
+    })
   }
 
   async function handleSubmit() {
     setSubmitting(true)
     setError(null)
-    // Build the payload: for each page, a list of edited texts in order
-    const payload: Record<string, string[]> = {}
+    const textPayload: Record<string, string[]> = {}
+    const offsetPayload: Record<string, number[][]> = {}
     for (const page of pages) {
-      payload[String(page.page_index)] = page.text_blocks.map((b, i) =>
+      const pKey = String(page.page_index)
+      textPayload[pKey] = page.text_blocks.map((b, i) =>
         getEditText(page.page_index, i, b.polished_text || b.translated_text),
       )
+      // Only include offsets that are non-zero
+      const pageOffsets = offsets[pKey] ?? {}
+      const hasOffsets = Object.keys(pageOffsets).length > 0
+      if (hasOffsets) {
+        offsetPayload[pKey] = page.text_blocks.map((_, i) => {
+          const o = pageOffsets[i] ?? [0, 0]
+          return [o[0], o[1]]
+        })
+      }
     }
     try {
-      await submitEdits(taskId, payload)
+      await submitEdits(taskId, textPayload, Object.keys(offsetPayload).length > 0 ? offsetPayload : undefined)
       onCompleted()
     } catch {
       setError('提交失败，请重试')
@@ -88,15 +122,20 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
   }
 
   const editedCount = Object.values(edits).reduce(
-    (sum, pageEdits) => sum + Object.keys(pageEdits).length,
-    0,
+    (sum, pe) => sum + Object.keys(pe).length, 0,
+  )
+  const offsetCount = Object.values(offsets).reduce(
+    (sum, pe) => sum + Object.keys(pe).filter(k => {
+      const o = pe[Number(k)]
+      return o && (o[0] !== 0 || o[1] !== 0)
+    }).length, 0,
   )
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">
-          编辑翻译（{editedCount} 处已修改）
+          编辑翻译（{editedCount} 处文字修改{offsetCount > 0 ? `，${offsetCount} 处位置微调` : ''}）
         </h2>
         <button
           onClick={handleSubmit}
@@ -137,24 +176,30 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left font-medium w-16">#</th>
+              <th className="px-3 py-2 text-left font-medium w-10">#</th>
               <th className="px-3 py-2 text-left font-medium">原文</th>
               <th className="px-3 py-2 text-left font-medium">译文（可编辑）</th>
-              <th className="px-3 py-2 w-20" />
+              <th className="px-3 py-2 text-left font-medium w-28">
+                <Move className="mr-1 inline h-3 w-3" />位置微调
+              </th>
+              <th className="px-3 py-2 w-16" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {currentPage.text_blocks.map((block, i) => {
               const currentText = getEditText(pageIdx, i, block.polished_text || block.translated_text)
-              const isEdited = pageEdits[i] !== undefined && pageEdits[i] !== (block.polished_text || block.translated_text)
+              const isEdited = edits[String(pageIdx)]?.[i] !== undefined &&
+                edits[String(pageIdx)][i] !== (block.polished_text || block.translated_text)
+              const [dx, dy] = getOffset(pageIdx, i)
+              const hasOffset = dx !== 0 || dy !== 0
               return (
-                <tr key={i} className={isEdited ? 'bg-amber-50' : 'hover:bg-slate-50'}>
-                  <td className="px-3 py-2 text-slate-400">{i + 1}</td>
-                  <td className="px-3 py-2 text-slate-600 align-top">{block.original_text || '—'}</td>
+                <tr key={i} className={isEdited || hasOffset ? 'bg-amber-50/50' : 'hover:bg-slate-50'}>
+                  <td className="px-3 py-2 text-slate-400 align-top">{i + 1}</td>
+                  <td className="px-3 py-2 text-slate-600 align-top max-w-32">{block.original_text || '—'}</td>
                   <td className="px-3 py-2 align-top">
                     <textarea
                       value={currentText}
@@ -163,14 +208,42 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
                       className="w-full rounded border border-slate-200 px-2 py-1 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
                     />
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 align-top">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={dx}
+                        onChange={(e) => setOffset(pageIdx, i, 0, parseInt(e.target.value) || 0)}
+                        className="w-12 rounded border border-slate-200 px-1 py-0.5 text-xs text-center"
+                        title="水平偏移（像素）"
+                      />
+                      <span className="text-xs text-slate-400">×</span>
+                      <input
+                        type="number"
+                        value={dy}
+                        onChange={(e) => setOffset(pageIdx, i, 1, parseInt(e.target.value) || 0)}
+                        className="w-12 rounded border border-slate-200 px-1 py-0.5 text-xs text-center"
+                        title="垂直偏移（像素）"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center align-top">
                     <button
                       onClick={() => useOriginal(i)}
-                      className="text-xs text-slate-400 hover:text-slate-700"
+                      className="block text-xs text-slate-400 hover:text-slate-700"
                       title="恢复为初翻译文"
                     >
                       初翻
                     </button>
+                    {hasOffset && (
+                      <button
+                        onClick={() => resetOffset(i)}
+                        className="block mt-1 text-xs text-slate-400 hover:text-red-500"
+                        title="重置位置"
+                      >
+                        重置
+                      </button>
+                    )}
                   </td>
                 </tr>
               )
@@ -180,7 +253,7 @@ export function TranslationEditor({ taskId, onCompleted }: TranslationEditorProp
       </div>
 
       <p className="text-xs text-slate-400">
-        修改译文后点击「提交并嵌字」，将使用修改后的译文渲染到图片上。点击「初翻」可恢复为未润色的机翻译文。
+        修改译文后点击「提交并嵌字」。位置微调的 X/Y 值为像素偏移量（正数向右/下，负数向左/上）。
       </p>
     </div>
   )

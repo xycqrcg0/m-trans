@@ -339,6 +339,8 @@ async def get_editable_blocks(task_id: str):
                         "original_text": b.original_text,
                         "translated_text": b.translated_text,
                         "polished_text": b.polished_text,
+                        "center": b.center,
+                        "size": b.size,
                     }
                     for j, b in enumerate(pg.text_blocks)
                 ],
@@ -347,14 +349,14 @@ async def get_editable_blocks(task_id: str):
         ],
     }
 
-
 @app.post("/api/tasks/{task_id}/edit", summary="提交编辑后的翻译并渲染")
 async def submit_edits(task_id: str, edits: dict):
-    """Submit edited translations and trigger rendering.
+    """Submit edited translations and optional position offsets, then render.
 
-    Request body: {"pages": {"0": ["edited text 1", "edited text 2", ...], "1": [...]}}
-    Keys are page indices (as strings, JSON requirement), values are lists of
-    edited translation strings in text-block order.
+    Request body: {
+        "pages": {"0": ["text1", "text2", ...], "1": [...]},
+        "offsets": {"0": [[dx,dy], [dx,dy], ...], "1": [...]}
+    }
     """
     task = worker.task_store.get(task_id) or worker.load_task(task_id)
     if not task:
@@ -373,9 +375,26 @@ async def submit_edits(task_id: str, edits: dict):
         if isinstance(v, list):
             edited_texts[idx] = [str(t) if t else "" for t in v]
 
+    # Parse optional position offsets: {page_index: [[dx, dy], ...]}
+    offsets_data = edits.get("offsets", {})
+    position_offsets: dict[int, list[list[int]]] = {}
+    for k, v in offsets_data.items():
+        try:
+            idx = int(k)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(v, list):
+            position_offsets[idx] = [
+                [int(x) for x in (o if isinstance(o, list) else [0, 0])][:2]
+                for o in v
+            ]
+
     # Run rendering on the worker thread
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(worker._EXECUTOR, worker.render_edited_task, task, edited_texts)
+    await loop.run_in_executor(
+        worker._EXECUTOR, worker.render_edited_task,
+        task, edited_texts, position_offsets,
+    )
     return {"task_id": task.id, "status": task.status.value}
 
 

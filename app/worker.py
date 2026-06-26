@@ -169,9 +169,21 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
                 xyxy = [int(v) for v in pts]
         except Exception:
             pass
+        # Extract center and size for position editing
+        center = [0.0, 0.0]
+        size = [0.0, 0.0]
+        try:
+            c = np.asarray(region.center).tolist()
+            if isinstance(c, list) and len(c) == 2:
+                center = [float(v) for v in c]
+            # unrotated_size gives (width, height)
+            us = np.asarray(region.unrotated_size).tolist()
+            if isinstance(us, list) and len(us) == 2:
+                size = [float(v) for v in us]
+        except Exception:
+            pass
         translated = getattr(region, "raw_translation", None)
         if translated is None:
-            # No polish ran; raw == final
             translated = getattr(region, "translation", "") or ""
         polished = getattr(region, "translation", "") or ""
         blocks.append(
@@ -180,6 +192,8 @@ def _extract_text_blocks(text_regions: list) -> list[TextBlockResult]:
                 original_text=getattr(region, "text", "") or "",
                 translated_text=translated,
                 polished_text=polished,
+                center=center,
+                size=size,
             )
         )
     return blocks
@@ -308,11 +322,17 @@ def _execute_task_blocking(task: Task) -> None:
                 q.put_nowait(ev)
 
 
-def render_edited_task(task: Task, edited_texts: dict[int, list[str]]) -> None:
+def render_edited_task(
+    task: Task,
+    edited_texts: dict[int, list[str]],
+    position_offsets: dict[int, list[list[int]]] | None = None,
+) -> None:
     """Render translations onto inpainted images after user editing.
 
-    Called from a worker thread. *edited_texts* maps page index to a list of
-    edited translation strings (one per text block, in order).
+    Called from a worker thread.
+    *edited_texts* maps page index to a list of edited translation strings.
+    *position_offsets* maps page index to a list of [dx, dy] pixel offsets
+    per text block. None or [0, 0] means no change.
     """
     def _persist(status: TaskStatus) -> None:
         task.status = status
@@ -331,12 +351,23 @@ def render_edited_task(task: Task, edited_texts: dict[int, list[str]]) -> None:
             with open(ctx_path, "rb") as f:
                 ctx = pickle.load(f)
 
-            # Apply edited translations back to text_regions
+            # Apply edited translations and position offsets back to text_regions
             text_regions = ctx.get("text_regions") or []
             edits = edited_texts.get(page_idx, [])
+            offsets = (position_offsets or {}).get(page_idx, [])
             for i, region in enumerate(text_regions):
                 if i < len(edits) and edits[i]:
                     region.translation = edits[i]
+                # Apply position offset by shifting lines and center
+                if i < len(offsets) and len(offsets[i]) >= 2:
+                    dx, dy = int(offsets[i][0]), int(offsets[i][1])
+                    if dx != 0 or dy != 0:
+                        region.lines = np.array(region.lines, dtype=np.int32)
+                        region.lines[:, :, 0] += dx  # x coords
+                        region.lines[:, :, 1] += dy  # y coords
+                        region.center = np.array(region.center, dtype=np.float64)
+                        region.center[0] += dx
+                        region.center[1] += dy
                 # Update text_blocks model too
                 if i < len(page.text_blocks):
                     page.text_blocks[i].polished_text = getattr(region, "translation", "") or ""
