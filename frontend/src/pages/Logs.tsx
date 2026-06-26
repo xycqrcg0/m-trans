@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { RefreshCw, Trash2, FileText, Loader2 } from 'lucide-react'
 import { listLogs, readLog, deleteLog, type LogFile } from '@/lib/api'
 
@@ -10,7 +10,7 @@ export default function Logs() {
   const [loadingContent, setLoadingContent] = useState(false)
   const [tail, setTail] = useState(500)
   const [error, setError] = useState<string | null>(null)
-
+  const logRef = useRef<HTMLPreElement>(null)
   const loadFiles = useCallback(async () => {
     setLoading(true)
     try {
@@ -40,6 +40,13 @@ export default function Logs() {
       setLoadingContent(false)
     }
   }, [selected, tail])
+
+  // Auto-scroll to bottom (newest logs) when content changes
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight
+    }
+  }, [content])
 
   useEffect(() => { loadFiles() }, [loadFiles])
   useEffect(() => { if (selected) loadContent() }, [loadContent])
@@ -123,7 +130,7 @@ export default function Logs() {
             </div>
           )}
           {selected ? (
-            <pre className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-slate-900 p-4 text-xs leading-relaxed text-slate-300">
+            <pre ref={logRef} className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-slate-900 p-4 text-xs leading-relaxed text-slate-300">
               {content || '(空)'}
             </pre>
           ) : (
