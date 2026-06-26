@@ -54,6 +54,8 @@ async def lifespan(app: FastAPI):
     # Re-apply our logging config — uvicorn may have overridden it
     setup_logging()
     set_glossary_dir(settings.glossary_dir)
+    from app.translation_cache import init_cache
+    init_cache()
     cleanup_old_logs()
     create_default_glossary()
     await worker.startup()
@@ -832,3 +834,16 @@ async def delete_log(filename: str):
     if not delete_log_file(filename):
         raise HTTPException(status_code=404, detail="日志文件不存在或无法删除")
     return {"deleted": filename}
+
+
+@app.get("/api/cache/stats", summary="翻译缓存统计")
+async def get_cache_stats():
+    from app.translation_cache import cache_stats
+    return cache_stats()
+
+
+@app.delete("/api/cache", summary="清空翻译缓存")
+async def clear_cache():
+    from app.translation_cache import cache_clear
+    deleted = cache_clear()
+    return {"deleted": deleted}

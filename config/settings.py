@@ -39,14 +39,14 @@ class Settings(BaseSettings):
     # application logs
     log_dir: Path = BASE_DIR / "storage" / "logs"
     log_retention_days: int = 7
-    glossary_dir: Path = BASE_DIR / "glossaries"
+    cache_dir: Path = BASE_DIR / "storage" / "cache"
 
     # service
     host: str = "0.0.0.0"
     port: int = 8000
 
     def ensure_dirs(self) -> None:
-        for d in (self.upload_dir, self.result_dir, self.task_dir, self.mt_result_dir, self.log_dir, self.glossary_dir):
+        for d in (self.upload_dir, self.result_dir, self.task_dir, self.mt_result_dir, self.log_dir, self.cache_dir, self.glossary_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

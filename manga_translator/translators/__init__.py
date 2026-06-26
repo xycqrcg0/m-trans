@@ -1,7 +1,7 @@
 from typing import Optional, List
-
+import logging
 import py3langid as langid
-
+logger = logging.getLogger("manga_translator.translators")
 from .common import *
 from .baidu import BaiduTranslator
 from .deepseek import DeepseekTranslator
@@ -105,14 +105,49 @@ async def dispatch(chain: TranslatorChain, queries: List[str], translator_config
             await translator.load('auto', tgt_lang, device)
         if translator_config:
             translator.parse_args(translator_config)
-        if key == "gemini_2stage" or key == "chatgpt_2stage":
-            queries = await translator.translate('auto', tgt_lang, queries, args)
+
+        # Translation cache: check for cached results before calling API
+        cached: dict[int, str] = {}
+        uncached_indices: list[int] = []
+        uncached_queries: list[str] = []
+        try:
+            from app.translation_cache import cache_batch_get
+            cached = cache_batch_get(queries, key, tgt_lang)
+            uncached_indices = [i for i in range(len(queries)) if i not in cached]
+            uncached_queries = [queries[i] for i in uncached_indices]
+            if cached:
+                logger.info(f"Translation cache: {len(cached)}/{len(queries)} hits for '{key}' → {tgt_lang}")
+        except Exception:
+            uncached_indices = list(range(len(queries)))
+            uncached_queries = list(queries)
+
+        # Only translate uncached queries
+        if uncached_queries:
+            if key == "gemini_2stage" or key == "chatgpt_2stage":
+                translated = await translator.translate('auto', tgt_lang, uncached_queries, args)
+            else:
+                translated = await translator.translate('auto', tgt_lang, uncached_queries, use_mtpe)
+            # Store in cache
+            try:
+                from app.translation_cache import cache_batch_put
+                cache_batch_put(uncached_queries, key, tgt_lang, translated)
+            except Exception:
+                pass
+            # Merge cached + newly translated
+            result = list(queries)  # fallback: original text
+            for ci, idx in enumerate(uncached_indices):
+                if ci < len(translated):
+                    result[idx] = translated[ci]
+            for idx, trans in cached.items():
+                result[idx] = trans
+            queries = result
         else:
-            queries = await translator.translate('auto', tgt_lang, queries, use_mtpe)
+            # All cached
+            queries = [cached.get(i, queries[i]) for i in range(len(queries))]
+
         if args is not None:
             args['translations'][tgt_lang] = queries
     return queries
-
 
 async def dispatch_batch(chain: TranslatorChain, batch_queries: List[List[str]], translator_config: Optional[TranslatorConfig] = None, use_mtpe: bool = False, args:Optional[Context] = None, device: str = 'cpu') -> List[List[str]]:
     """
