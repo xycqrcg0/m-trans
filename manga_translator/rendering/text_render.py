@@ -616,7 +616,8 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     """
     max_width = max(max_width, 2 * font_size)
 
-    # Split on explicit newlines — each segment is a forced line
+    # Split on explicit newlines (both 0x0A and literal \n) — each segment is a forced line
+    text = text.replace('\\n', '\n')
     forced_segments = text.split('\n')
 
     whitespace_offset_x = get_char_offset_x(font_size, ' ')
