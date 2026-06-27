@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 import cv2
@@ -540,20 +541,27 @@ def put_char_vertical(font_size: int, cdpt: str, pen_l: Tuple[int, int], canvas_
     # Return vertical advance value  
     return char_offset_y  
 
-def put_text_vertical(font_size: int, text: str, h: int, alignment: str, fg: Tuple[int, int, int], bg: Optional[Tuple[int, int, int]], line_spacing: int):
-    text = compact_special_symbols(text)
-    if not text :
-        return
+def put_text_vertical(font_size: int, text: str, h: int, alignment: str, fg: Tuple[int, int, int], bg: Optional[Tuple[int, int, int]], line_spacing: int, plan: Optional['LineBreakPlan'] = None):
+    if plan is not None:
+        line_text_list = plan.lines
+        line_height_list = plan.line_extents
+        font_size = plan.font_size
+        if not line_text_list:
+            return
+    else:
+        text = compact_special_symbols(text)
+        if not text :
+            return
+        line_text_list, line_height_list = calc_vertical(font_size, text, h)
     bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
     spacing_x = int(font_size * (line_spacing or 0.2))
 
     # make large canvas
-    num_char_y = h // font_size
-    num_char_x = len(text) // num_char_y + 1
+    num_char_y = h // font_size if font_size > 0 else 1
+    num_char_y = max(num_char_y, 1)
+    num_char_x = len(line_text_list)
     canvas_x = font_size * num_char_x + spacing_x * (num_char_x - 1) + (font_size + bg_size) * 2
     canvas_y = font_size * num_char_y + (font_size + bg_size) * 2
-    line_text_list, line_height_list = calc_vertical(font_size, text, h)
-    # print(line_text_list, line_height_list)
 
     canvas_text = np.zeros((canvas_y, canvas_x), dtype=np.uint8)
     canvas_border = canvas_text.copy()
@@ -1111,7 +1119,7 @@ def put_char_horizontal(font_size: int, cdpt: str, pen_l: Tuple[int, int], canva
                     # 使用 cv2.add 可以平滑合并重叠的描边部分
                     canvas_border[paste_border_y_start:paste_border_y_end,
                                 paste_border_x_start:paste_border_x_end] = cv2.add(
-                        target_slice, bitmap_border_slice)
+                                target_slice, bitmap_border_slice)
                 else:
                     print(f"[Error] Shape mismatch during border paste: "
                          f"target={target_slice.shape}, source={bitmap_border_slice.shape}")
@@ -1120,16 +1128,21 @@ def put_char_horizontal(font_size: int, cdpt: str, pen_l: Tuple[int, int], canva
 
 def put_text_horizontal(font_size: int, text: str, width: int, height: int, alignment: str,
                         reversed_direction: bool, fg: Tuple[int, int, int], bg: Tuple[int, int, int],
-                        lang: str = 'en_US', hyphenate: bool = True, line_spacing: int = 0):
-    text = compact_special_symbols(text)
-    if not text :
-        return
-    bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
-    spacing_y = int(font_size * (line_spacing or 0.01))
-
-    # calc
-    # print(width)
-    line_text_list, line_width_list, font_size = calc_horizontal(font_size, text, width, height, lang, hyphenate)
+                        lang: str = 'en_US', hyphenate: bool = True, line_spacing: int = 0,
+                        plan: Optional['LineBreakPlan'] = None):
+    if plan is not None:
+        line_text_list = plan.lines
+        line_width_list = plan.line_extents
+        font_size = plan.font_size
+        if not line_text_list:
+            return
+    else:
+        text = compact_special_symbols(text)
+        if not text :
+            return
+        # calc
+        # print(width)
+        line_text_list, line_width_list, font_size = calc_horizontal(font_size, text, width, height, lang, hyphenate)
     # Recalculate layout params with possibly shrunk font_size
     bg_size = int(max(font_size * 0.07, 1)) if bg is not None else 0
     spacing_y = int(font_size * (line_spacing or 0.01))

@@ -259,7 +259,8 @@ async def dispatch(
     hyphenate: bool = True,
     render_mask: np.ndarray = None,
     line_spacing: int = None,
-    disable_font_border: bool = False
+    disable_font_border: bool = False,
+    line_break_strategy: str = 'auto',
     ) -> np.ndarray:
 
     # Set default font for the batch
@@ -277,18 +278,18 @@ async def dispatch(
             text_render.set_font(region_font)
         if render_mask is not None:
             cv2.fillConvexPoly(render_mask, dst_points.astype(np.int32), 1)
-        img = render(img, region, dst_points, hyphenate, line_spacing, disable_font_border)
+        img = render(img, region, dst_points, hyphenate, line_spacing, disable_font_border, line_break_strategy)
         if region_font != font_path:
             text_render.set_font(font_path)
     return img
-
 def render(
     img,
     region: TextBlock,
     dst_points,
     hyphenate,
     line_spacing,
-    disable_font_border
+    disable_font_border,
+    line_break_strategy: str = 'auto',
 ):
     fg, bg = region.get_font_colors()
     fg, bg = fg_bg_compare(fg, bg)
@@ -315,10 +316,22 @@ def render(
 
     #print(f"Region text: {region.text}, forced_direction: {forced_direction}, render_horizontally: {render_horizontally}")
 
+    # Build a unified line-break plan so horizontal and vertical rendering
+    # share the same newline handling, font-size shrinking and strategy
+    # selection. `primary` is the axis along which a line grows; `secondary`
+    # bounds the number of lines/columns.
+    from .line_break import select_strategy
+    direction = region.direction
+    strategy = select_strategy(direction, getattr(region, 'target_lang', 'en_US'), forced=line_break_strategy)
+    text = region.get_translation_for_rendering()
     if render_horizontally:
+        plan = strategy.break_text(
+            text, round(norm_h[0]), round(norm_v[0]), region.font_size,
+            direction=direction, lang=region.target_lang, hyphenate=hyphenate,
+        )
         temp_box = text_render.put_text_horizontal(
             region.font_size,
-            region.get_translation_for_rendering(),
+            text,
             round(norm_h[0]),
             round(norm_v[0]),
             region.alignment,
@@ -328,16 +341,22 @@ def render(
             region.target_lang,
             hyphenate,
             line_spacing,
+            plan,
         )
     else:
+        plan = strategy.break_text(
+            text, round(norm_v[0]), round(norm_h[0]), region.font_size,
+            direction=direction, lang=region.target_lang, hyphenate=hyphenate,
+        )
         temp_box = text_render.put_text_vertical(
             region.font_size,
-            region.get_translation_for_rendering(),
+            text,
             round(norm_v[0]),
             region.alignment,
             fg,
             bg,
             line_spacing,
+            plan,
         )
     h, w, _ = temp_box.shape
     r_temp = w / h

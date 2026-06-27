@@ -73,6 +73,11 @@ class Direction(str, Enum):
     h = "horizontal"
     v = "vertical"
 
+class LineBreakStrategy(str, Enum):
+    auto = "auto"
+    char = "char"
+    word_hyphen = "word_hyphen"
+
 class InpaintPrecision(str, Enum):
     fp32 = "fp32"
     fp16 = "fp16"
@@ -154,13 +159,14 @@ class RenderConfig(BaseModel):
     font_size_offset: int = 0
     """Offset font size by a given amount, positive number increase font size and vice versa"""
     font_size_minimum: int = -1
-    """Minimum output font size. Default is image_sides_sum/200"""
+    lowercase: bool = False
+    """Change text to lowercase"""
+    line_break_strategy: LineBreakStrategy = LineBreakStrategy.auto
+    """Line breaking strategy: auto (direction-based), char (per-character, CJK/vertical), word_hyphen (word+syllable+hyphen, latin/horizontal)"""
     direction: Direction = Direction.auto
     """Force text to be rendered horizontally/vertically/none"""
     uppercase: bool = False
     """Change text to uppercase"""
-    lowercase: bool = False
-    """Change text to lowercase"""
     gimp_font: str = 'Sans-serif'
     """Font family to use for gimp rendering."""
     no_hyphenation: bool = False
