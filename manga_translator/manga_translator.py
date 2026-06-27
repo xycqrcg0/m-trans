@@ -91,70 +91,6 @@ def apply_dictionary(text, dictionary):
         if text != original_text:  
             logger.info(f'Line {line_number}: Replaced "{original_text}" with "{text}" using pattern "{pattern.pattern}" and value "{value}"')
     return text
-def _detect_sfx_regions(text_regions, img):
-    """Flag sound effect (SFX) regions for special handling.
-
-    Multi-signal detection to minimize false positives:
-    1. Outside bubble: text not surrounded by white/black bubble edges
-    2. Katakana-heavy: SFX is predominantly katakana (カタカナ)
-    3. Repetition: repeated characters (ドドド, キラキラ, ワクワク)
-    4. Large font + short text (supporting signal, not primary)
-
-    A region is flagged as SFX if it matches signal 1 (outside bubble)
-    AND at least one of signals 2-4.
-    """
-    if not text_regions or len(img.shape) < 2:
-        return
-
-    import re
-    # Katakana range: \u30A0-\u30FF
-    kata_re = re.compile(r'[\u30A0-\u30FF]')
-
-    for region in text_regions:
-        text = (region.text or "").strip()
-        if not text or len(text) > 12:
-            continue
-
-        # Signal 1: Outside bubble — check if surrounded by bubble edges
-        try:
-            x1, y1, x2, y2 = region.xyxy
-            # Crop region with padding for bubble detection
-            pad = 5
-            ry1 = max(0, y1 - pad)
-            ry2 = min(img.shape[0], y2 + pad)
-            rx1 = max(0, x1 - pad)
-            rx2 = min(img.shape[1], x2 + pad)
-            region_img = img[ry1:ry2, rx1:rx2]
-            if region_img.size == 0:
-                continue
-            from .utils.bubble import is_ignore
-            outside_bubble = is_ignore(region_img, ignore_bubble=10)
-        except Exception:
-            outside_bubble = False
-
-        if not outside_bubble:
-            continue  # Inside a bubble — not SFX
-
-        # Signal 2: Katakana-heavy
-        kata_count = len(kata_re.findall(text))
-        kata_ratio = kata_count / max(len(text), 1)
-        is_kata = kata_ratio > 0.5
-
-        # Signal 3: Repetition (same char 2+ times, or ABAB pattern)
-        is_repeat = len(text) >= 2 and (
-            any(text.count(c) >= 2 for c in text) or  # char repeats
-            (len(text) >= 4 and text[:2] == text[2:4])  # ABAB pattern
-        )
-
-        # Signal 4: Large font + short text (supporting)
-        font_sizes = [r.font_size for r in text_regions if r.font_size > 0]
-        median_fs = sorted(font_sizes)[len(font_sizes) // 2] if font_sizes else 20
-        is_large = region.font_size > median_fs * 1.3 and len(text) <= 8
-
-        # Flag as SFX if outside bubble AND (katakana OR repetition OR large)
-        if is_kata or is_repeat or is_large:
-            region.is_sfx = True
-            logger.info(f"SFX detected: '{text}' (kata={is_kata}, repeat={is_repeat}, large={is_large})")
 
 
 class MangaTranslator:
@@ -419,58 +355,16 @@ class MangaTranslator:
 
         if not ctx.textlines:
             await self._report_progress('skip-no-regions', True)
-            # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
             return await self._revert_upscale(config, ctx)
 
-        if self.verbose:
-            img_bbox_raw = np.copy(ctx.img_rgb)
-            for txtln in ctx.textlines:
-                cv2.polylines(img_bbox_raw, [txtln.pts], True, color=(255, 0, 0), thickness=2)
-            cv2.imwrite(self._result_path('bboxes_unfiltered.png'), cv2.cvtColor(img_bbox_raw, cv2.COLOR_RGB2BGR))
-
-        # -- OCR
-        await self._report_progress('ocr')
-        try:
-            ctx.textlines = await self._run_ocr(config, ctx)
-        except Exception as e:  
-            logger.error(f"Error during ocr:\n{str(e)}")  
-            if not self.ignore_errors:  
-                raise 
-            ctx.textlines = [] # Fallback to empty textlines if OCR fails
-
-        if not ctx.textlines:
-            await self._report_progress('skip-no-text', True)
-            # If no text was found result is intermediate image product
-            ctx.result = ctx.upscaled
-            return await self._revert_upscale(config, ctx)
-
-        # -- Textline merge
         await self._report_progress('textline_merge')
         try:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
-        except Exception as e:  
-            logger.error(f"Error during textline_merge:\n{str(e)}")  
+        except Exception as e:
+            logger.error(f"Error during textline_merge:\n{str(e)}")
             if not self.ignore_errors:
                 raise
-
-        # -- SFX detection: flag sound effects for special handling
-        _detect_sfx_regions(ctx.text_regions, ctx.img_rgb)
-
-        # Clear mask for SFX regions so they are NOT erased
-        if ctx.mask_raw is not None:
-            for region in ctx.text_regions:
-                if getattr(region, 'is_sfx', False):
-                    try:
-                        x1, y1, x2, y2 = region.xyxy
-                        pad = 3
-                        y1c = max(0, y1 - pad)
-                        y2c = min(ctx.mask_raw.shape[0], y2 + pad)
-                        x1c = max(0, x1 - pad)
-                        x2c = min(ctx.mask_raw.shape[1], x2 + pad)
-                        ctx.mask_raw[y1c:y2c, x1c:x2c] = 0
-                    except Exception:
-                        pass
 
 
         if self.verbose and ctx.text_regions:

@@ -216,41 +216,6 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
 
     return dst_points_list
 
-def _render_sfx_annotation(img, region, font_path: str):
-    """Render a small translation annotation next to an SFX region.
-
-    The original SFX art is preserved (not erased). A small text annotation
-    is rendered at the bottom-right corner of the SFX region.
-    """
-    try:
-        import cv2 as _cv2
-        from PIL import Image as _PILImage, ImageDraw as _ImageDraw, ImageFont as _ImageFont
-        x1, y1, x2, y2 = region.xyxy
-        annotation = region.translation.strip()
-        if not annotation:
-            return img
-        # Small font — about 1/3 of the SFX font size, min 10px
-        anno_fs = max(int(region.font_size * 0.35), 10)
-        # Load font
-        try:
-            font = _ImageFont.truetype(font_path or _FONTS.get('default', ''), anno_fs)
-        except Exception:
-            font = _ImageFont.load_default()
-        # Draw on a PIL image (white bg, black text) for simplicity
-        pil = _PILImage.fromarray(img)
-        draw = _ImageDraw.Draw(pil)
-        # Position: bottom-right of SFX region, with small padding
-        pad = 4
-        ax = min(x2 + pad, img.shape[1] - 1)
-        ay = min(y2 + pad, img.shape[0] - 1)
-        # Draw white background rectangle for readability
-        bbox = draw.textbbox((ax, ay), annotation, font=font)
-        draw.rectangle([bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2], fill=(255, 255, 255, 200))
-        draw.text((ax, ay), annotation, fill=(0, 0, 0), font=font)
-        return _np.array(pil)
-    except Exception:
-        return img
-
 import os as _os
 
 # Font paths for different text categories
@@ -273,18 +238,16 @@ def _select_region_font(region, default_font: str) -> str:
     if not text:
         return default_font
 
-    # Heuristic: SFX detection — very large font size relative to image,
-    # short text (1-4 chars), often kana-only or onomatopoeia
+    # Large font + short text = likely SFX → use comic font
     font_size = getattr(region, 'font_size', 0) or 0
     num_chars = len(text)
-
-    # Large font + short text = likely SFX → use comic font
     if font_size > 40 and num_chars <= 6:
         sfx_font = _FONTS.get('sfx', '')
         if sfx_font and _os.path.exists(sfx_font):
             return sfx_font
 
     return default_font
+
 
 async def dispatch(
     img: np.ndarray,
@@ -308,11 +271,7 @@ async def dispatch(
 
     # Render text — select font per region based on text characteristics
     for region, dst_points in tqdm(zip(text_regions, dst_points_list), '[render]', total=len(text_regions)):
-        # SFX regions: render small annotation next to original (not replaced)
-        if getattr(region, 'is_sfx', False) and region.translation:
-            img = _render_sfx_annotation(img, region, font_path)
-            continue
-        # Normal regions: pick font and render
+        # Pick font and render
         region_font = _select_region_font(region, font_path)
         if region_font != font_path:
             text_render.set_font(region_font)

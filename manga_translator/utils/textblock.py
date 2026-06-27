@@ -71,7 +71,6 @@ class TextBlock(object):
                  prob: float = 1,
                  **kwargs) -> None:
         self.prob: float = prob
-        self.is_sfx: bool = False  # Sound effect / onomatopoeia flag
         self.lines = np.array(lines, dtype=np.int32)
         self.language = language
         self.font_size = round(font_size)
