@@ -134,6 +134,7 @@ export function PositionCanvas({
   useEffect(() => {
     let cancelled = false
     const inp = new Image()
+    inp.crossOrigin = 'anonymous'
     inp.onload = () => { if (!cancelled) { inpaintedImgRef.current = inp; setInpaintedReady(true) } }
     inp.src = inpaintedUrl
     return () => { cancelled = true; setInpaintedReady(false) }
@@ -143,6 +144,7 @@ export function PositionCanvas({
   useEffect(() => {
     let cancelled = false
     const rnd = new Image()
+    rnd.crossOrigin = 'anonymous'
     rnd.onload = () => { if (!cancelled) { renderedImgRef.current = rnd; setRenderedReady(true) } }
     rnd.src = renderedUrl
     return () => { cancelled = true; setRenderedReady(false) }
@@ -185,10 +187,10 @@ export function PositionCanvas({
       onMouseLeave={handleMouseUp}
       onClick={() => onSelect(null)}
     >
-      {/* Sizing element (hidden visually, drives layout + onLoad). */}
       <img
         src={renderedUrl}
         alt="嵌字预览"
+        crossOrigin="anonymous"
         className="w-full block"
         onLoad={onImageLoad}
         draggable={false}
