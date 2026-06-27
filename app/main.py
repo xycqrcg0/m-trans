@@ -404,12 +404,20 @@ async def preview_render(task_id: str, payload: dict):
     # Render preview
     loop = asyncio.get_running_loop()
     def _do_render():
-        return asyncio.run(render_pipeline(ctx, task.config))
-    ctx = await loop.run_in_executor(worker._EXECUTOR, _do_render)
+        try:
+            return asyncio.run(render_pipeline(ctx, task.config))
+        except Exception as e:
+            return e
+    result_ctx = await loop.run_in_executor(worker._EXECUTOR, _do_render)
+
+    if isinstance(result_ctx, Exception):
+        raise HTTPException(status_code=500, detail=f"渲染失败：{result_ctx}")
+    if result_ctx is None or result_ctx.get("result") is None:
+        raise HTTPException(status_code=500, detail="渲染失败：结果为空")
 
     import io
     buf = io.BytesIO()
-    ctx["result"].save(buf, format="PNG")
+    result_ctx["result"].save(buf, format="PNG")
     buf.seek(0)
     return StreamingResponse(buf, media_type="image/png")
 
