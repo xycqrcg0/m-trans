@@ -552,7 +552,11 @@ class MangaTranslator:
         """Render text onto an already-inpainted image."""
         # Ensure we have a base image — img_inpainted may be None if translation
         # failed early (empty queries) before inpainting ran
-        base_img = ctx.get("img_inpainted") or ctx.get("img_inpainted_pre_render") or ctx.get("img_rgb")
+        base_img = ctx.get("img_inpainted")
+        if base_img is None:
+            base_img = ctx.get("img_inpainted_pre_render")
+        if base_img is None:
+            base_img = ctx.get("img_rgb")
         if base_img is None:
             raise RuntimeError("No base image available for rendering")
         ctx.img_inpainted = base_img
