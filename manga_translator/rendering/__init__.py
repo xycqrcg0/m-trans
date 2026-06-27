@@ -98,7 +98,7 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
             # OCR-detected size) caused expansion to be miscalculated.
             line_text_list, _, _ = text_render.calc_horizontal(
                 target_font_size,
-                region.translation,
+                text_render.compact_special_symbols(region.translation),
                 max_width=region.unrotated_size[0],
                 max_height=region.unrotated_size[1],
                 language=getattr(region, "target_lang", "en_US")
@@ -133,7 +133,7 @@ def resize_regions_to_font_size(img: np.ndarray, text_regions: List['TextBlock']
 
             line_text_list, _ = text_render.calc_vertical(
                 target_font_size,
-                region.translation,
+                text_render.compact_special_symbols(region.translation),
                 max_height=region.unrotated_size[1],
             )
             needed_cols = len(line_text_list)
