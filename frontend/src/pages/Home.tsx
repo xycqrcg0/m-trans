@@ -8,9 +8,19 @@ import { ConfigPanel } from '@/components/ConfigPanel'
 export default function Home() {
   const navigate = useNavigate()
   const [files, setFiles] = useState<File[]>([])
-  const [config, setConfig] = useState<Partial<TaskConfig>>(DEFAULT_CONFIG)
+  const [config, setConfig] = useState<Partial<TaskConfig>>(() => {
+    try {
+      const saved = localStorage.getItem('manga_config')
+      return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG
+    } catch { return DEFAULT_CONFIG }
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function updateConfig(cfg: Partial<TaskConfig>) {
+    setConfig(cfg)
+    try { localStorage.setItem('manga_config', JSON.stringify(cfg)) } catch { /* ignore */ }
+  }
 
   async function handleSubmit() {
     if (!files.length) { setError('请先选择图片'); return }
@@ -41,7 +51,7 @@ export default function Home() {
 
         <div className="border-t border-slate-100 pt-5">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">翻译配置</h2>
-          <ConfigPanel config={config} onChange={setConfig} />
+          <ConfigPanel config={config} onChange={updateConfig} />
         </div>
 
         {error && (
