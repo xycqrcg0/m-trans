@@ -612,17 +612,30 @@ def get_string_width(font_size: int, text: str):
 def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, language: str = 'en_US', hyphenate: bool = True) -> Tuple[List[str], List[int], int]:
     """
     Splits up a string of text into lines. Returns list of lines, their widths, and the (possibly shrunk) font_size.
+    Explicit \\n in text forces a line break.
     """
     max_width = max(max_width, 2 * font_size)
+
+    # Split on explicit newlines — each segment is a forced line
+    forced_segments = text.split('\n')
 
     whitespace_offset_x = get_char_offset_x(font_size, ' ')
     hyphen_offset_x = get_char_offset_x(font_size, '-')
 
-    # Split text into words and precalculate each word width
-    words = re.split(r'\s+', text)
+    # Split each segment into words and precalculate widths
+    all_words = []
     word_widths = []
-    for i, word in enumerate(words):
-        word_widths.append(get_string_width(font_size, word))
+    forced_break_after = []  # marks last word of a forced segment
+    for seg_i, segment in enumerate(forced_segments):
+        seg_words = re.split(r'\s+', segment.strip())
+        for w in seg_words:
+            if w:
+                all_words.append(w)
+                word_widths.append(get_string_width(font_size, w))
+                forced_break_after.append(False)
+        if seg_i < len(forced_segments) - 1 and all_words:
+            forced_break_after[-1] = True
+    words = all_words
 
     # If text doesn't fit in (max_width, max_height), shrink font_size instead of expanding max_width.
     # Expanding max_width causes text to overflow the bubble.
@@ -720,6 +733,8 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
         if line_width + current_width + word_widths[i] <= max_width + hyphen_offset_x:
             line_words.append(i)
             line_width += current_width + word_widths[i]
+            if forced_break_after[i]:
+                break_line()
             i += 1
         elif word_widths[i] > max_width:
             # We know no syllable can be larger than max_width
@@ -814,6 +829,9 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     while line_idx < len(line_words_list) - 1:
         line_words1 = line_words_list[line_idx]
         line_words2 = line_words_list[line_idx + 1]
+        if not line_words1 or not line_words2:
+            line_idx += 1
+            continue
         merged_word_idx = -1
 
         if line_words1[-1] == line_words2[0]:
