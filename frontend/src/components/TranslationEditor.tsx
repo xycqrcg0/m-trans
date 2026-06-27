@@ -36,7 +36,15 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [glossaries, setGlossaries] = useState<GlossaryMeta[]>([])
   const [addTermMsg, setAddTermMsg] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
+  // Auto-scroll list to selected block
+  useEffect(() => {
+    if (selected !== null && listRef.current) {
+      const item = listRef.current.children[selected] as HTMLElement
+      if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [selected])
   // Clean (text-erased) base image, used by the canvas to erase-in-place.
   const inpaintedUrl = getInpaintedUrl(taskId, pageIndex + 1)
 
@@ -331,11 +339,11 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       )}
 
       {/* Compact list of all blocks */}
-      <details className="rounded-lg border border-slate-200">
+      <details open className="rounded-lg border border-slate-200">
         <summary className="cursor-pointer px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           全部文字块（{currentPage.text_blocks.length} 个）
         </summary>
-        <div className="divide-y divide-slate-100">
+        <div ref={listRef} className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
           {currentPage.text_blocks.map((block, i) => {
             const [dx, dy] = pageOffsets[i] ?? [0, 0]
             const isModified = (edits[pageKey]?.[i] !== undefined && edits[pageKey][i] !== (block.polished_text || block.translated_text))
