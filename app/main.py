@@ -848,3 +848,47 @@ async def clear_cache():
     from app.translation_cache import cache_clear
     deleted = cache_clear()
     return {"deleted": deleted}
+
+
+@app.get("/api/fonts", summary="获取可用字体列表")
+async def list_fonts():
+    """List all available fonts: built-in + user-uploaded."""
+    fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
+    user_dir = fonts_dir / "user_fonts"
+    result = []
+    # Built-in fonts
+    for f in sorted(fonts_dir.glob("*.[to]t[fc]")):
+        result.append({"name": f.name, "path": str(f), "builtin": True})
+    # User fonts
+    if user_dir.exists():
+        for f in sorted(user_dir.glob("*.[to]t[fc]")):
+            result.append({"name": f.name, "path": str(f), "builtin": False})
+    return {"fonts": result}
+
+
+@app.post("/api/fonts/upload", summary="上传自定义字体")
+async def upload_font(file: UploadFile = File(...)):
+    """Upload a .ttf/.otf/.ttc font file to fonts/user_fonts/."""
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in (".ttf", ".otf", ".ttc"):
+        raise HTTPException(status_code=400, detail="仅支持 .ttf / .otf / .ttc 字体文件")
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="字体文件不能超过 50MB")
+    user_dir = Path(__file__).resolve().parent.parent / "fonts" / "user_fonts"
+    user_dir.mkdir(parents=True, exist_ok=True)
+    dest = user_dir / Path(file.filename).name
+    dest.write_bytes(content)
+    return {"name": dest.name, "path": str(dest)}
+
+
+@app.delete("/api/fonts/{filename}", summary="删除用户字体")
+async def delete_font(filename: str):
+    user_dir = Path(__file__).resolve().parent.parent / "fonts" / "user_fonts"
+    path = user_dir / filename
+    if not path.resolve().parent.samefile(user_dir.resolve()):
+        raise HTTPException(status_code=400, detail="无效路径")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="字体不存在")
+    path.unlink()
+    return {"deleted": filename}

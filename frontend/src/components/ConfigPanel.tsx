@@ -8,9 +8,11 @@ import {
   type GlossaryMeta, type OptionItem, type TaskConfig, type TranslatorOption,
   getOptions, listGlossaries,
 } from '@/lib/api'
+import { FontSelector } from '@/components/FontSelector'
+
 interface ConfigPanelProps {
   config: Partial<TaskConfig>
-  onChange: (c: Partial<TaskConfig>) => void
+  onChange: (config: Partial<TaskConfig>) => void
 }
 
 const FALLBACK_LANGS: OptionItem[] = [
@@ -284,11 +286,18 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                   type="number"
                   min={0}
                   max={5}
-                  value={config.context_size ?? 0}
+                  value={config.context_size ?? 2}
                   onChange={(e) => onChange({ ...config, context_size: parseInt(e.target.value) || 0 })}
                   className="w-16 rounded-md border border-slate-200 px-2 py-1 text-sm"
                 />
                 <span className="text-xs text-slate-400">页（GPT 翻译器用前 N 页译文做上下文）</span>
+              </div>
+            )}
+
+            {!isEraseOnly && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">嵌字字体</label>
+                <FontSelector value={config.font_path ?? ''} onChange={(p) => onChange({ ...config, font_path: p })} />
               </div>
             )}
           </div>

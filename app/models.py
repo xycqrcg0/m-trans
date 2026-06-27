@@ -40,7 +40,7 @@ class TaskConfig(BaseModel):
     mask_kernel_size: int = 3
     inpainting_size: int = 2048
     interactive_edit: bool = False
-
+    font_path: str = ""  # Custom font path for rendering
 
 class TextBlockResult(BaseModel):
     xyxy: list[int] = Field(default_factory=lambda: [0, 0, 0, 0], min_length=4, max_length=4)

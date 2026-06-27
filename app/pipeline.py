@@ -145,7 +145,8 @@ async def run_pipeline(
         config = _build_config(task_cfg)
 
         translator.context_size = task_cfg.context_size
-
+        if task_cfg.font_path:
+            translator.font_path = task_cfg.font_path
         polish_fn = _make_polish_fn(task_cfg)
 
         old_glossary_path = os.environ.get("OPENAI_GLOSSARY_PATH")
@@ -229,6 +230,8 @@ async def render_pipeline(ctx: Context, task_cfg: TaskConfig) -> Context:
         translator = await get_translator()
         config = _build_config(task_cfg)
         translator.context_size = task_cfg.context_size
+        if task_cfg.font_path:
+            translator.font_path = task_cfg.font_path
         ctx = await translator.render_translations(config, ctx)
     return ctx
 
