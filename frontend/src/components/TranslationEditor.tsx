@@ -38,13 +38,7 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   const [addTermMsg, setAddTermMsg] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll list to selected block
-  useEffect(() => {
-    if (selected !== null && listRef.current) {
-      const item = listRef.current.children[selected] as HTMLElement
-      if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    }
-  }, [selected])
+  // No auto-scroll — keep page position stable during block selection
   // Clean (text-erased) base image, used by the canvas to erase-in-place.
   const inpaintedUrl = getInpaintedUrl(taskId, pageIndex + 1)
 

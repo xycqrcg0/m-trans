@@ -133,12 +133,14 @@ def CJK_Compatibility_Forms_translate(cdpt: str, direction: int):
             return cdpt, 0
     return cdpt, 0
 
-def compact_special_symbols(text: str) -> str:  
-    text = text.replace('...', '…')  
-    text = text.replace('..', '…')      
+def compact_special_symbols(text: str) -> str:
+    # Normalize newlines: literal \n (backslash+n) → real newline
+    text = text.replace('\\n', '\n')
     # Remove half-width and full-width spaces after each punctuation mark
-    pattern = r'([^\w\s])[ \u3000]+'  
-    text = re.sub(pattern, r'\1', text) 
+    # but preserve newlines (0x0A is \s, so exclude it from the pattern)
+    text = re.sub(r'([^\w\s\n])[\u3000]+', r'\1', text)
+    text = text.replace('...', '…')
+    text = text.replace('..', '…')
     return text
     
 def rotate_image(image, angle):
@@ -614,10 +616,8 @@ def calc_horizontal(font_size: int, text: str, max_width: int, max_height: int, 
     Splits up a string of text into lines. Returns list of lines, their widths, and the (possibly shrunk) font_size.
     Explicit \\n in text forces a line break.
     """
-    max_width = max(max_width, 2 * font_size)
-
-    # Split on explicit newlines (both 0x0A and literal \n) — each segment is a forced line
-    text = text.replace('\\n', '\n')
+    # Split on explicit newlines — literal \n was already converted to
+    # 0x0A by compact_special_symbols before we get here.
     forced_segments = text.split('\n')
 
     whitespace_offset_x = get_char_offset_x(font_size, ' ')
