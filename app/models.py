@@ -31,7 +31,7 @@ class TaskConfig(BaseModel):
     inpainter: str = "lama_large"
     render_translated_text: bool = True
     detection_size: int = 2048
-    context_size: int = 0
+    context_size: int = 2
     font_size_offset: int = 0
     font_size_minimum: int = 10
     line_spacing: Optional[int] = None

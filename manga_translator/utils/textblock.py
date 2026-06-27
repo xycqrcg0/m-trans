@@ -70,8 +70,9 @@ class TextBlock(object):
                  shadow_offset: List = [0, 0],
                  prob: float = 1,
                  **kwargs) -> None:
+        self.prob: float = prob
+        self.is_sfx: bool = False  # Sound effect / onomatopoeia flag
         self.lines = np.array(lines, dtype=np.int32)
-        # self.lines.sort()
         self.language = language
         self.font_size = round(font_size)
         self.angle = angle

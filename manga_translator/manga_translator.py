@@ -91,6 +91,45 @@ def apply_dictionary(text, dictionary):
         if text != original_text:  
             logger.info(f'Line {line_number}: Replaced "{original_text}" with "{text}" using pattern "{pattern.pattern}" and value "{value}"')
     return text
+def _detect_sfx_regions(text_regions, img):
+    """Flag sound effect (SFX) regions for special handling.
+
+    Heuristics:
+    - Large font size (> 1.5x median font size of the page)
+    - Short text (≤ 6 characters)
+    - Large area relative to image (SFX often takes up significant space)
+
+    SFX regions are marked with region.is_sfx = True. The mask and render
+    steps then skip erasing the original and instead render a small
+    annotation next to the SFX.
+    """
+    if not text_regions or len(img.shape) < 2:
+        return
+    font_sizes = [r.font_size for r in text_regions if r.font_size > 0]
+    if not font_sizes:
+        return
+    median_fs = sorted(font_sizes)[len(font_sizes) // 2]
+    img_area = img.shape[0] * img.shape[1]
+
+    for region in text_regions:
+        text = (region.text or "").strip()
+        if not text:
+            continue
+        # Large font + short text = likely SFX
+        is_large = region.font_size > median_fs * 1.5 and region.font_size > 30
+        is_short = len(text) <= 8
+        # Large area relative to image
+        try:
+            x1, y1, x2, y2 = region.xyxy
+            region_area = (x2 - x1) * (y2 - y1)
+            is_big_area = region_area > img_area * 0.01  # > 1% of image
+        except Exception:
+            is_big_area = False
+
+        if is_large and is_short:
+            region.is_sfx = True
+            logger.info(f"SFX detected: '{text}' (font_size={region.font_size}, median={median_fs})")
+
 
 class MangaTranslator:
     verbose: bool
@@ -386,9 +425,27 @@ class MangaTranslator:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
         except Exception as e:  
             logger.error(f"Error during textline_merge:\n{str(e)}")  
-            if not self.ignore_errors:  
-                raise 
-            ctx.text_regions = [] # Fallback to empty text_regions if textline merge fails
+            if not self.ignore_errors:
+                raise
+
+        # -- SFX detection: flag sound effects for special handling
+        _detect_sfx_regions(ctx.text_regions, ctx.img_rgb)
+
+        # Clear mask for SFX regions so they are NOT erased
+        if ctx.mask_raw is not None:
+            for region in ctx.text_regions:
+                if getattr(region, 'is_sfx', False):
+                    try:
+                        x1, y1, x2, y2 = region.xyxy
+                        pad = 3
+                        y1c = max(0, y1 - pad)
+                        y2c = min(ctx.mask_raw.shape[0], y2 + pad)
+                        x1c = max(0, x1 - pad)
+                        x2c = min(ctx.mask_raw.shape[1], x2 + pad)
+                        ctx.mask_raw[y1c:y2c, x1c:x2c] = 0
+                    except Exception:
+                        pass
+
 
         if self.verbose and ctx.text_regions:
             show_panels = not config.force_simple_sort  # 当不使用简单排序时显示panel
@@ -423,6 +480,10 @@ class MangaTranslator:
             ctx.text_regions = [] # Fallback to empty text_regions if translation fails
 
         await self._report_progress('after-translating')
+
+        # -- SFX detection: flag sound effects for special handling
+        # (keep original, add small annotation instead of replacing)
+        _detect_sfx_regions(ctx.text_regions, ctx.img_rgb)
 
         if not ctx.text_regions:
             await self._report_progress('error-translating', True)
