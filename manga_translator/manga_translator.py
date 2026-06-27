@@ -535,27 +535,28 @@ class MangaTranslator:
         return ctx
 
     async def render_translations(self, config: Config, ctx: Context) -> Context:
-        """Render text onto an already-inpainted image.
+        """Render text onto an already-inpainted image."""
+        # Ensure we have a base image — img_inpainted may be None if translation
+        # failed early (empty queries) before inpainting ran
+        base_img = ctx.get("img_inpainted") or ctx.get("img_inpainted_pre_render") or ctx.get("img_rgb")
+        if base_img is None:
+            raise RuntimeError("No base image available for rendering")
+        ctx.img_inpainted = base_img
 
-        Called after ``translate(..., stop_before_render=True)`` to finish the
-        pipeline once the caller has optionally edited ``ctx.text_regions``.
-        """
-        # -- Rendering (same logic as the tail of _translate)
         await self._report_progress('rendering')
         try:
             ctx.img_rendered = await self._run_text_rendering(config, ctx)
         except Exception as e:
-            logger.error(f"Error during rendering:\n{str(e)}")
+            logger.error(f"Error during rendering: {e}")
             if not self.ignore_errors:
                 raise
-            ctx.img_rendered = ctx.img_inpainted
+            ctx.img_rendered = base_img
 
         await self._report_progress('finished', True)
         if ctx.img_rendered is None:
-            ctx.img_rendered = ctx.get("img_inpainted") or ctx.get("img_rgb")
-        if ctx.img_rendered is None:
-            raise RuntimeError("No image available for rendering (img_inpainted is None)")
+            ctx.img_rendered = base_img
         ctx.result = dump_image(ctx.input, ctx.img_rendered, ctx.img_alpha)
+        return await self._revert_upscale(config, ctx)
 
     async def _run_colorizer(self, config: Config, ctx: Context):
         current_time = time.time()

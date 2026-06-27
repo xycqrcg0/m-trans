@@ -265,8 +265,19 @@ def _execute_task_blocking(task: Task) -> None:
                 page.inpainted_path = str(inpainted_path)
             else:
                 page.inpainted_path = ""
-
             page.text_blocks = _extract_text_blocks(ctx.get("text_regions") or [])
+
+            # If interactive and no text regions, translation failed — don't
+            # enter awaiting_edit with nothing to edit.
+            if interactive and not page.text_blocks:
+                # Check if OCR detected textlines but translation returned empty
+                textlines = ctx.get("textlines") or []
+                if textlines:
+                    raise RuntimeError(
+                        f"第 {page_idx + 1} 页翻译失败：OCR 检测到文字但翻译结果为空"
+                        f"（可能是翻译引擎连接失败或配置错误）"
+                    )
+
             # Validate: if text was detected but all translations are empty,
             # the translation failed (e.g. API timeout). Don't mark as done.
             if not interactive and page.text_blocks:
