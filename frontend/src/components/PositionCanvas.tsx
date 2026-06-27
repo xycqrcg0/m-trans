@@ -218,7 +218,7 @@ export function PositionCanvas({
             const w = (x2 - x1) * scale
             const h = (y2 - y1) * scale
             return (
-              <g key={index} style={{ pointerEvents: 'auto', cursor: 'move' }} onMouseDown={(e) => handleMouseDown(e, index)}>
+              <g key={index} style={{ pointerEvents: 'auto', cursor: 'move' }} onMouseDown={(e) => handleMouseDown(e, index)} onClick={(e) => e.stopPropagation()}>
                 <rect
                   x={x} y={y} width={w} height={h}
                   fill={isSel ? 'rgba(99,102,241,0.10)' : 'transparent'}
