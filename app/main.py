@@ -860,17 +860,28 @@ async def clear_cache():
 
 @app.get("/api/fonts", summary="获取可用字体列表")
 async def list_fonts():
-    """List all available fonts: built-in + user-uploaded."""
+    """List all available fonts with CJK support detection."""
+    from fontTools.ttLib import TTFont, TTCollection
     fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
     user_dir = fonts_dir / "user_fonts"
     result = []
-    # Built-in fonts
+
+    def _has_cjk(path: str) -> bool:
+        try:
+            fonts = [TTFont(path)] if not path.endswith(".ttc") else TTCollection(path).fonts
+            for font in fonts:
+                for table in font["cmap"].tables:
+                    if any(cp in table.cmap for cp in range(0x4E00, 0x4E10)):
+                        return True
+            return False
+        except Exception:
+            return False
+
     for f in sorted(fonts_dir.glob("*.[to]t[fc]")):
-        result.append({"name": f.name, "path": str(f), "builtin": True})
-    # User fonts
+        result.append({"name": f.name, "path": str(f), "builtin": True, "cjk": _has_cjk(str(f))})
     if user_dir.exists():
         for f in sorted(user_dir.glob("*.[to]t[fc]")):
-            result.append({"name": f.name, "path": str(f), "builtin": False})
+            result.append({"name": f.name, "path": str(f), "builtin": False, "cjk": _has_cjk(str(f))})
     return {"fonts": result}
 
 
