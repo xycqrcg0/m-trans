@@ -94,41 +94,67 @@ def apply_dictionary(text, dictionary):
 def _detect_sfx_regions(text_regions, img):
     """Flag sound effect (SFX) regions for special handling.
 
-    Heuristics:
-    - Large font size (> 1.5x median font size of the page)
-    - Short text (≤ 6 characters)
-    - Large area relative to image (SFX often takes up significant space)
+    Multi-signal detection to minimize false positives:
+    1. Outside bubble: text not surrounded by white/black bubble edges
+    2. Katakana-heavy: SFX is predominantly katakana (カタカナ)
+    3. Repetition: repeated characters (ドドド, キラキラ, ワクワク)
+    4. Large font + short text (supporting signal, not primary)
 
-    SFX regions are marked with region.is_sfx = True. The mask and render
-    steps then skip erasing the original and instead render a small
-    annotation next to the SFX.
+    A region is flagged as SFX if it matches signal 1 (outside bubble)
+    AND at least one of signals 2-4.
     """
     if not text_regions or len(img.shape) < 2:
         return
-    font_sizes = [r.font_size for r in text_regions if r.font_size > 0]
-    if not font_sizes:
-        return
-    median_fs = sorted(font_sizes)[len(font_sizes) // 2]
-    img_area = img.shape[0] * img.shape[1]
+
+    import re
+    # Katakana range: \u30A0-\u30FF
+    kata_re = re.compile(r'[\u30A0-\u30FF]')
 
     for region in text_regions:
         text = (region.text or "").strip()
-        if not text:
+        if not text or len(text) > 12:
             continue
-        # Large font + short text = likely SFX
-        is_large = region.font_size > median_fs * 1.5 and region.font_size > 30
-        is_short = len(text) <= 8
-        # Large area relative to image
+
+        # Signal 1: Outside bubble — check if surrounded by bubble edges
         try:
             x1, y1, x2, y2 = region.xyxy
-            region_area = (x2 - x1) * (y2 - y1)
-            is_big_area = region_area > img_area * 0.01  # > 1% of image
+            # Crop region with padding for bubble detection
+            pad = 5
+            ry1 = max(0, y1 - pad)
+            ry2 = min(img.shape[0], y2 + pad)
+            rx1 = max(0, x1 - pad)
+            rx2 = min(img.shape[1], x2 + pad)
+            region_img = img[ry1:ry2, rx1:rx2]
+            if region_img.size == 0:
+                continue
+            from .utils.bubble import is_ignore
+            outside_bubble = is_ignore(region_img, ignore_bubble=10)
         except Exception:
-            is_big_area = False
+            outside_bubble = False
 
-        if is_large and is_short:
+        if not outside_bubble:
+            continue  # Inside a bubble — not SFX
+
+        # Signal 2: Katakana-heavy
+        kata_count = len(kata_re.findall(text))
+        kata_ratio = kata_count / max(len(text), 1)
+        is_kata = kata_ratio > 0.5
+
+        # Signal 3: Repetition (same char 2+ times, or ABAB pattern)
+        is_repeat = len(text) >= 2 and (
+            any(text.count(c) >= 2 for c in text) or  # char repeats
+            (len(text) >= 4 and text[:2] == text[2:4])  # ABAB pattern
+        )
+
+        # Signal 4: Large font + short text (supporting)
+        font_sizes = [r.font_size for r in text_regions if r.font_size > 0]
+        median_fs = sorted(font_sizes)[len(font_sizes) // 2] if font_sizes else 20
+        is_large = region.font_size > median_fs * 1.3 and len(text) <= 8
+
+        # Flag as SFX if outside bubble AND (katakana OR repetition OR large)
+        if is_kata or is_repeat or is_large:
             region.is_sfx = True
-            logger.info(f"SFX detected: '{text}' (font_size={region.font_size}, median={median_fs})")
+            logger.info(f"SFX detected: '{text}' (kata={is_kata}, repeat={is_repeat}, large={is_large})")
 
 
 class MangaTranslator:
