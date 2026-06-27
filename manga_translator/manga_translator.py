@@ -358,14 +358,28 @@ class MangaTranslator:
             ctx.result = ctx.upscaled
             return await self._revert_upscale(config, ctx)
 
+        # -- OCR
+        await self._report_progress('ocr')
+        try:
+            ctx.textlines = await self._run_ocr(config, ctx)
+        except Exception as e:
+            logger.error(f"Error during ocr: {e}")
+            if not self.ignore_errors:
+                raise
+            ctx.textlines = []
+
+        if not ctx.textlines:
+            await self._report_progress('skip-no-text', True)
+            ctx.result = ctx.upscaled
+            return await self._revert_upscale(config, ctx)
+
         await self._report_progress('textline_merge')
         try:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
         except Exception as e:
-            logger.error(f"Error during textline_merge:\n{str(e)}")
+            logger.error(f"Error during textline_merge: {e}")
             if not self.ignore_errors:
                 raise
-
 
         if self.verbose and ctx.text_regions:
             show_panels = not config.force_simple_sort  # 当不使用简单排序时显示panel
