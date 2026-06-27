@@ -551,8 +551,11 @@ class MangaTranslator:
             ctx.img_rendered = ctx.img_inpainted
 
         await self._report_progress('finished', True)
+        if ctx.img_rendered is None:
+            ctx.img_rendered = ctx.get("img_inpainted") or ctx.get("img_rgb")
+        if ctx.img_rendered is None:
+            raise RuntimeError("No image available for rendering (img_inpainted is None)")
         ctx.result = dump_image(ctx.input, ctx.img_rendered, ctx.img_alpha)
-        return await self._revert_upscale(config, ctx)
 
     async def _run_colorizer(self, config: Config, ctx: Context):
         current_time = time.time()
