@@ -401,10 +401,6 @@ class MangaTranslator:
 
         await self._report_progress('after-translating')
 
-        # -- SFX detection: flag sound effects for special handling
-        # (keep original, add small annotation instead of replacing)
-        _detect_sfx_regions(ctx.text_regions, ctx.img_rgb)
-
         if not ctx.text_regions:
             await self._report_progress('error-translating', True)
             ctx.result = ctx.upscaled
