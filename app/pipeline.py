@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import logging
 import os
 from pathlib import Path
@@ -30,9 +31,8 @@ ProgressHook = Callable[[str, bool], Awaitable[None]]
 
 logger = logging.getLogger("pipeline")
 
-_translator: Optional[MangaTranslator] = None
-_translator_lock = asyncio.Lock()
-_pipeline_lock = asyncio.Lock()
+_translator_lock = threading.Lock()
+_pipeline_lock = threading.Lock()
 
 _DICT_DIR = Path(__file__).resolve().parent.parent / "dict"
 _PRE_DICT = _DICT_DIR / "pre_dict.txt"
@@ -41,7 +41,7 @@ _POST_DICT = _DICT_DIR / "post_dict.txt"
 
 async def get_translator() -> MangaTranslator:
     global _translator
-    async with _translator_lock:
+    with _translator_lock:
         if _translator is None:
             # Redirect the library's intermediate result output away from
             # the project root into our storage area.
@@ -140,7 +140,7 @@ async def run_pipeline(
     on_progress: Optional[ProgressHook] = None,
     stop_before_render: bool = False,
 ) -> Context:
-    async with _pipeline_lock:
+    with _pipeline_lock:
         translator = await get_translator()
         config = _build_config(task_cfg)
 
@@ -228,7 +228,7 @@ async def render_pipeline(ctx: Context, task_cfg: TaskConfig) -> Context:
     Called after ``run_pipeline(..., stop_before_render=True)`` once the
     caller has optionally edited ``ctx.text_regions[].translation``.
     """
-    async with _pipeline_lock:
+    with _pipeline_lock:
         translator = await get_translator()
         config = _build_config(task_cfg)
         translator.context_size = task_cfg.context_size

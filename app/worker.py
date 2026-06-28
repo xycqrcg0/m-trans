@@ -12,7 +12,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
-from app.models import Page, ProgressEvent, Task, TaskStatus, TextBlockResult
+from app.models import Page, PageStatus, ProgressEvent, Task, TaskStatus, TextBlockResult
 from app.pipeline import render_pipeline, run_pipeline, warmup
 from config.settings import settings
 logger = logging.getLogger("worker")
@@ -22,6 +22,7 @@ class TaskCancelled(Exception):
     """Raised inside a worker thread when the task has been cancelled."""
 
 _EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+_RENDER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="render")
 
 task_store: dict[str, Task] = {}
 progress_queues: dict[str, Queue] = {}
@@ -222,15 +223,26 @@ def _execute_task_blocking(task: Task) -> None:
     """Run the full task pipeline synchronously (called from a worker thread).
     Processes all pages sequentially.
 
-    When task.config.interactive_edit is True, stops after inpainting for each
-    page, persists the ctx (pickle) so translations can be edited later, and
-    sets the task to awaiting_edit. The caller (API) can then invoke
-    render_edited_task() to finish rendering with the user's edited text.
+    Each page gets its own status (PageStatus). In interactive mode, a page
+    becomes awaiting_edit as soon as it's inpainted — the user can edit it
+    while later pages are still processing. The task status is awaiting_edit
+    once any page is ready, and done when all pages are terminal.
     """
     def _persist(status: TaskStatus) -> None:
         task.status = status
         task_store[task.id] = task
         save_task(task)
+
+    def _persist_page() -> None:
+        task_store[task.id] = task
+        save_task(task)
+
+    def _emit(state: str, pct: int, msg: str, done: bool = False) -> None:
+        q = progress_queues.get(task.id)
+        if q is not None:
+            ev = ProgressEvent(state=state, progress_pct=pct, message_cn=msg, done=done)
+            last_progress[task.id] = ev
+            q.put_nowait(ev)
 
     try:
         _persist(TaskStatus.detecting)
@@ -241,6 +253,8 @@ def _execute_task_blocking(task: Task) -> None:
         total_pages = len(task.pages)
 
         for page_idx, page in enumerate(task.pages):
+            page.status = PageStatus.processing
+            _persist_page()
             image = Image.open(page.upload_path).convert("RGB")
 
             async def _run() -> None:
@@ -270,7 +284,6 @@ def _execute_task_blocking(task: Task) -> None:
             # If interactive and no text regions, translation failed — don't
             # enter awaiting_edit with nothing to edit.
             if interactive and not page.text_blocks:
-                # Check if OCR detected textlines but translation returned empty
                 textlines = ctx.get("textlines") or []
                 if textlines:
                     raise RuntimeError(
@@ -292,12 +305,12 @@ def _execute_task_blocking(task: Task) -> None:
                 ctx_path = result_dir / f"page_{page_idx:04d}_ctx.pkl"
                 with open(ctx_path, "wb") as f:
                     pickle.dump(ctx, f)
-                # Use inpainted image as temporary result so the user can preview
                 if inpainted_data is not None:
                     Image.fromarray(inpainted_data).save(result_path, format="PNG")
                 else:
                     image.save(result_path, format="PNG")
                 page.result_path = str(result_path)
+                page.status = PageStatus.awaiting_edit
             else:
                 # Normal flow: save final rendered result
                 if ctx.get("result") is not None:
@@ -307,51 +320,48 @@ def _execute_task_blocking(task: Task) -> None:
                 else:
                     image.save(result_path, format="PNG")
                 page.result_path = str(result_path)
+                page.status = PageStatus.done
 
             task.pages[page_idx] = page
-            _persist(task.status)
+            _persist_page()
 
+            # In interactive mode, flip the task to awaiting_edit as soon as
+            # the first page is ready so the user can start editing while
+            # remaining pages keep processing.
+            if interactive and task.status != TaskStatus.awaiting_edit:
+                _persist(TaskStatus.awaiting_edit)
+                _emit(TaskStatus.awaiting_edit.value, int(page_idx / total_pages * 100),
+                      f"第 {page_idx + 1}/{total_pages} 页可编辑", done=False)
+
+        # All pages processed.
         if interactive:
-            _persist(TaskStatus.awaiting_edit)
-            # Send a terminal event for the await phase so SSE consumers
-            # know the task is now waiting for user input.
-            q = progress_queues.get(task.id)
-            if q is not None:
-                ev = ProgressEvent(
-                    state=TaskStatus.awaiting_edit.value,
-                    progress_pct=82,
-                    message_cn="等待编辑翻译",
-                    done=True,
-                )
-                last_progress[task.id] = ev
-                q.put_nowait(ev)
+            # Stay in awaiting_edit until the user submits edits (render_edited_task
+            # flips to done). If every page already failed, mark failed.
+            if task.all_pages_terminal() and not task.has_awaiting_edit_page():
+                _persist(TaskStatus.failed if any(p.status == PageStatus.failed for p in task.pages) else TaskStatus.done)
+            elif not task.has_awaiting_edit_page():
+                _persist(TaskStatus.done)
+            else:
+                # ensure awaiting_edit is set
+                if task.status != TaskStatus.awaiting_edit:
+                    _persist(TaskStatus.awaiting_edit)
+                _emit(TaskStatus.awaiting_edit.value, 82, "等待编辑翻译", done=False)
         else:
             _persist(TaskStatus.done)
             cleanup_task_temp_files(task)
+            _emit(TaskStatus.done.value, 100, "完成", done=True)
     except TaskCancelled:
         logger.info("Task %s cancelled", task.id)
         task.error = "任务已取消"
         _persist(TaskStatus.cancelled)
+        _emit(TaskStatus.cancelled.value, 0, "已取消", done=True)
     except Exception as exc:
         logger.error("Task %s failed: %s", task.id, exc)
         task.error = str(exc)
         _persist(TaskStatus.failed)
+        _emit(TaskStatus.failed.value, 0, f"失败：{task.error}", done=True)
     finally:
         _cancelled.discard(task.id)
-        if task.status not in (TaskStatus.awaiting_edit,):
-            q = progress_queues.get(task.id)
-            if q is not None:
-                ev = ProgressEvent(
-                    state=task.status.value,
-                    progress_pct=100 if task.status == TaskStatus.done else 0,
-                    message_cn=("完成" if task.status == TaskStatus.done
-                                else "已取消" if task.status == TaskStatus.cancelled
-                                else f"失败：{task.error}"),
-                    done=True,
-                )
-                last_progress[task.id] = ev
-                q.put_nowait(ev)
-
 
 def render_edited_task(
     task: Task,
@@ -375,9 +385,15 @@ def render_edited_task(
         result_dir = settings.result_dir / task.id
 
         for page_idx, page in enumerate(task.pages):
+            # Skip pages that are not in awaiting_edit state (still processing,
+            # already done, or failed) — only render pages the user actually
+            # edited. This allows submitting edits while later pages are still
+            # being processed by _execute_task_blocking.
+            if page.status != PageStatus.awaiting_edit:
+                continue
             ctx_path = result_dir / f"page_{page_idx:04d}_ctx.pkl"
             if not ctx_path.exists():
-                raise FileNotFoundError(f"Context file not found: {ctx_path}")
+                continue
 
             with open(ctx_path, "rb") as f:
                 ctx = pickle.load(f)
@@ -418,6 +434,7 @@ def render_edited_task(
             if ctx.get("result") is not None:
                 ctx["result"].save(result_path, format="PNG")
             page.result_path = str(result_path)
+            page.status = PageStatus.done
 
             # Clean up pickle
             ctx_path.unlink(missing_ok=True)
@@ -425,8 +442,11 @@ def render_edited_task(
             task.pages[page_idx] = page
             _persist(task.status)
 
-        _persist(TaskStatus.done)
-        cleanup_task_temp_files(task)
+        # Task is done only when all pages are terminal (done/failed).
+        if task.all_pages_terminal():
+            _persist(TaskStatus.done)
+            cleanup_task_temp_files(task)
+
     except Exception as exc:
         logger.error("Task %s render failed: %s", task.id, exc)
         task.error = str(exc)

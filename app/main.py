@@ -336,6 +336,7 @@ async def get_editable_blocks(task_id: str):
             {
                 "page_index": i,
                 "filename": pg.filename,
+                "status": pg.status.value if hasattr(pg, "status") else "awaiting_edit",
                 "text_blocks": [
                     {
                         "index": j,
@@ -462,10 +463,12 @@ async def submit_edits(task_id: str, edits: dict):
                 for o in v
             ]
 
-    # Run rendering on the worker thread
+    # Run rendering on a dedicated executor so it doesn't queue behind
+    # _execute_task_blocking (which may still be processing later pages).
+    # _pipeline_lock serializes the actual render work.
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(
-        worker._EXECUTOR, worker.render_edited_task,
+        worker._RENDER_EXECUTOR, worker.render_edited_task,
         task, edited_texts, position_offsets,
     )
     return {"task_id": task.id, "status": task.status.value}

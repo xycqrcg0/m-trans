@@ -21,6 +21,14 @@ class TaskStatus(str, Enum):
     failed = "failed"
     cancelled = "cancelled"
 
+
+class PageStatus(str, Enum):
+    pending = "pending"
+    processing = "processing"
+    awaiting_edit = "awaiting_edit"
+    done = "done"
+    failed = "failed"
+
 class TaskConfig(BaseModel):
     target_lang: str = "CHS"
     translator: str = "youdao"
@@ -51,20 +59,14 @@ class TextBlockResult(BaseModel):
     center: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     # Original bounding box size (width, height) for display
     size: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
-    # Font size (OCR-detected, before shrink-to-fit) for preview rendering
-    font_size: int = 0
-    # Text foreground and background colors [r, g, b] for preview rendering
-    fg_color: list[int] = Field(default_factory=lambda: [0, 0, 0], min_length=3, max_length=3)
-    bg_color: list[int] = Field(default_factory=lambda: [255, 255, 255], min_length=3, max_length=3)
-    # Whether text is horizontal or vertical
-    horizontal: bool = True
-
 class Page(BaseModel):
     filename: str
     upload_path: str
     result_path: str = ""
     inpainted_path: str = ""
     text_blocks: list[TextBlockResult] = Field(default_factory=list)
+    status: PageStatus = PageStatus.pending
+    error: Optional[str] = None
 
 
 class Task(BaseModel):
@@ -77,6 +79,14 @@ class Task(BaseModel):
 
     def is_terminal(self) -> bool:
         return self.status in (TaskStatus.done, TaskStatus.failed, TaskStatus.cancelled)
+
+    def has_awaiting_edit_page(self) -> bool:
+        return any(p.status == PageStatus.awaiting_edit for p in self.pages)
+
+    def all_pages_terminal(self) -> bool:
+        return bool(self.pages) and all(
+            p.status in (PageStatus.done, PageStatus.failed) for p in self.pages
+        )
 
 
 class GlossaryEntry(BaseModel):
