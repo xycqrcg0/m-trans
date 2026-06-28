@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Loader2, Check, AlertCircle, RotateCcw } from 'lucide-react'
+import { Loader2, Check, AlertCircle, RotateCcw, RefreshCw } from 'lucide-react'
 import {
   getEditableBlocks,
   submitEdits,
@@ -11,6 +11,7 @@ import {
   type GlossaryMeta,
 } from '@/lib/api'
 import { PositionCanvas } from '@/components/PositionCanvas'
+import { Switch } from '@/components/ui/switch'
 
 interface TranslationEditorProps {
   taskId: string
@@ -33,6 +34,7 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   // Refreshed when text content changes; offsets never trigger a re-render.
   const [renderedUrl, setRenderedUrl] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
+  const [autoRender, setAutoRender] = useState(true)
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [glossaries, setGlossaries] = useState<GlossaryMeta[]>([])
   const [addTermMsg, setAddTermMsg] = useState<string | null>(null)
@@ -133,11 +135,12 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   }
 
   // Text content changes → debounced backend re-render of the default picture.
+  // Only when auto-render is on; otherwise the user triggers re-renders manually.
   useEffect(() => {
-    if (currentPage && renderedUrl !== null) scheduleRender()
+    if (autoRender && currentPage && renderedUrl !== null) scheduleRender()
     return () => clearTimeout(renderTimer.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edits])
+  }, [edits, autoRender])
 
   // Revoke object URL on unmount.
   useEffect(() => () => { if (renderedUrl) URL.revokeObjectURL(renderedUrl) }, [renderedUrl])
@@ -195,17 +198,31 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-700">
           嵌字前编辑{editedCount > 0 && `（${editedCount} 处文字修改）`}{offsetCount > 0 && `（${offsetCount} 处位置微调）`}
         </h2>
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
-        >
-          {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />渲染中…</> : <><Check className="h-4 w-4" />提交并嵌字</>}
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 select-none cursor-pointer">
+            <Switch checked={autoRender} onCheckedChange={setAutoRender} />
+            自动渲染
+          </label>
+          <button
+            onClick={() => void renderDefault()}
+            disabled={rendering}
+            className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {rendering ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            重新渲染
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />渲染中…</> : <><Check className="h-4 w-4" />提交并嵌字</>}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -237,7 +254,7 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       </div>
 
       <p className="text-xs text-slate-400">
-        图上文字即后端实时渲染的最终嵌字效果。拖拽方框微调位置时，前端直接平移该文字块的真实像素，无需重新渲染；修改译文内容后自动重新渲染底图。完成后点击「提交并嵌字」由后端按偏移量最终嵌字。
+        图上文字即后端实时渲染的最终嵌字效果。拖拽方框微调位置时，前端直接平移该文字块的真实像素，无需重新渲染；{autoRender ? '修改译文内容后自动重新渲染底图' : '关闭自动渲染后，修改译文内容需点击「重新渲染」查看效果'}。完成后点击「提交并嵌字」由后端按偏移量最终嵌字。
       </p>
 
       {/* Text editing panel for selected block */}
