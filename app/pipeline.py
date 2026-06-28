@@ -31,6 +31,7 @@ ProgressHook = Callable[[str, bool], Awaitable[None]]
 
 logger = logging.getLogger("pipeline")
 
+_translator: Optional[MangaTranslator] = None
 _translator_lock = threading.Lock()
 _pipeline_lock = threading.Lock()
 
