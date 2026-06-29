@@ -76,7 +76,7 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
           <SelectItem value="__default__">默认</SelectItem>
           {fonts.map((f) => (
             <SelectItem key={f.path} value={f.path}>
-              {f.name}{f.cjk ? '' : '（不含中文，将回退）'}{f.builtin ? '' : '（自定义）'}{f.note ? ` — ${f.note}` : ''}
+              {f.name}{f.note ? ` — ${f.note}` : ''}
             </SelectItem>
           ))}
         </SelectContent>
