@@ -15,6 +15,29 @@ import {
   type CustomTranslatorPreset,
 } from '@/lib/api'
 
+// Feature tags for translators, shown as colored badges on config cards.
+const _TRANSLATOR_TAGS: Record<string, { text: string; cls: string }[]> = {
+  google: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '免费', cls: 'bg-slate-100 text-slate-500' }],
+  youdao: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
+  baidu: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
+  deepl: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
+  papago: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
+  caiyun: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
+  chatgpt: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  chatgpt_2stage: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '两阶段', cls: 'bg-amber-50 text-amber-600' }, { text: '需视觉', cls: 'bg-purple-50 text-purple-600' }],
+  none: [],
+  original: [],
+  sakura: [{ text: '本地', cls: 'bg-green-50 text-green-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  deepseek: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  groq: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  gemini: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  gemini_2stage: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '两阶段', cls: 'bg-amber-50 text-amber-600' }, { text: '需视觉', cls: 'bg-purple-50 text-purple-600' }],
+  custom_openai: [{ text: '在线/本地', cls: 'bg-indigo-50 text-indigo-600' }, { text: '单阶段', cls: 'bg-slate-100 text-slate-500' }, { text: '纯文本', cls: 'bg-slate-100 text-slate-500' }],
+  sugoi: [{ text: '离线', cls: 'bg-green-50 text-green-600' }, { text: '仅日→英', cls: 'bg-red-50 text-red-500' }],
+  jparacrawl: [{ text: '离线', cls: 'bg-green-50 text-green-600' }, { text: '仅日↔英', cls: 'bg-red-50 text-red-500' }],
+  jparacrawl_big: [{ text: '离线', cls: 'bg-green-50 text-green-600' }, { text: '仅日↔英', cls: 'bg-red-50 text-red-500' }],
+}
+
 type Tab = 'translator' | 'llm' | 'font'
 
 export default function Settings() {
@@ -161,9 +184,14 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 flex-wrap">
                 {group.map((c, i) => (
-                  <span key={c.translator} className="font-medium text-slate-900">
+                  <span key={c.translator} className="flex items-center gap-1 flex-wrap">
                     {i > 0 && <span className="text-slate-300 mx-1">+</span>}
-                    {c.display_name || c.translator}
+                    <span className="font-medium text-slate-900">{c.display_name || c.translator}</span>
+                    {_TRANSLATOR_TAGS[c.translator]?.map(tag => (
+                      <span key={tag.text} className={`rounded px-1 py-0 text-[10px] leading-tight ${tag.cls}`}>
+                        {tag.text}
+                      </span>
+                    ))}
                   </span>
                 ))}
                 {group[0].category === 'polish' && (
