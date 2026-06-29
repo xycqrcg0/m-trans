@@ -127,6 +127,7 @@ class ConfigField(BaseModel):
 class TranslatorConfigItem(BaseModel):
     translator: str
     display_name: str = ""
+    category: str = "translator"  # "translator" | "llm" | "polish"
     fields: list[ConfigField] = []
     configured: bool = False
 

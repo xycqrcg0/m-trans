@@ -1,9 +1,8 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api' })
-
 // ── 类型定义（与后端 models.py 对齐）────────────────────────────────────────
 
+const http = axios.create({ baseURL: '/api' })
 export type TaskStatus =
   | 'pending' | 'detecting' | 'ocr' | 'translating'
   | 'polishing' | 'inpainting' | 'rendering' | 'awaiting_edit'
@@ -119,6 +118,7 @@ export interface ConfigField {
 export interface TranslatorConfigItem {
   translator: string
   display_name: string
+  category: string  // "translator" | "llm" | "polish"
   fields: ConfigField[]
   configured: boolean
 }

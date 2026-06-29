@@ -746,46 +746,35 @@ async def health_check():
 
 @app.get("/api/config/translator", response_model=list[TranslatorConfigItem], summary="获取翻译器配置状态")
 async def get_translator_configs():
+    _LLM_TRANSLATORS = {"deepseek", "chatgpt", "chatgpt_2stage", "gemini",
+                         "gemini_2stage", "groq", "custom_openai", "sakura"}
+
+    def _build_item(tid: str, display_name: str, fields_meta, category: str) -> TranslatorConfigItem:
+        fields = []
+        all_required_set = True
+        for env_var, label, ftype, required in fields_meta:
+            val = os.environ.get(env_var, "")
+            if required and not val:
+                all_required_set = False
+            if val and ftype == "password":
+                val_display = val[:4] + "***" if len(val) > 4 else ("***" if val else "")
+            else:
+                val_display = val
+            fields.append(ConfigField(
+                env_var=env_var, label=label, field_type=ftype,
+                required=required, value=val_display,
+            ))
+        return TranslatorConfigItem(
+            translator=tid, display_name=display_name,
+            category=category, fields=fields, configured=all_required_set,
+        )
+
     result: list[TranslatorConfigItem] = []
     for tid, (display_name, fields_meta) in _TRANSLATOR_CONFIG_META.items():
-        fields = []
-        all_required_set = True
-        for env_var, label, ftype, required in fields_meta:
-            val = os.environ.get(env_var, "")
-            if required and not val:
-                all_required_set = False
-            if val and ftype == "password":
-                val_display = val[:4] + "***" if len(val) > 4 else ("***" if val else "")
-            else:
-                val_display = val
-            fields.append(ConfigField(
-                env_var=env_var, label=label, field_type=ftype,
-                required=required, value=val_display,
-            ))
-        result.append(TranslatorConfigItem(
-            translator=tid, display_name=display_name,
-            fields=fields, configured=all_required_set,
-        ))
-    # Also include polish LLM config
+        cat = "llm" if tid in _LLM_TRANSLATORS else "translator"
+        result.append(_build_item(tid, display_name, fields_meta, cat))
     for tid, (display_name, fields_meta) in _POLISH_CONFIG_META.items():
-        fields = []
-        all_required_set = True
-        for env_var, label, ftype, required in fields_meta:
-            val = os.environ.get(env_var, "")
-            if required and not val:
-                all_required_set = False
-            if val and ftype == "password":
-                val_display = val[:4] + "***" if len(val) > 4 else ("***" if val else "")
-            else:
-                val_display = val
-            fields.append(ConfigField(
-                env_var=env_var, label=label, field_type=ftype,
-                required=required, value=val_display,
-            ))
-        result.append(TranslatorConfigItem(
-            translator=tid, display_name=display_name,
-            fields=fields, configured=all_required_set,
-        ))
+        result.append(_build_item(tid, display_name, fields_meta, "polish"))
     return result
 
 
