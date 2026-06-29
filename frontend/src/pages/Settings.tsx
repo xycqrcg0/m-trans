@@ -196,9 +196,6 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
                           {f.required && <span className="text-red-400"> *</span>}
                           {!f.required && <span className="text-slate-300">（可选）</span>}
                         </label>
-                        {f.description && (
-                          <p className="text-xs text-slate-400">{f.description}</p>
-                        )}
                         <input
                           type={f.field_type === 'password' ? 'password' : 'text'}
                           placeholder={f.value || `输入${f.label}`}

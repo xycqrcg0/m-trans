@@ -119,7 +119,6 @@ class CreateTaskResponse(BaseModel):
 class ConfigField(BaseModel):
     env_var: str
     label: str
-    description: str = ""
     field_type: str = "text"  # text, password
     required: bool = True
     value: str = ""  # masked value from env
