@@ -110,11 +110,11 @@ export interface CreateTaskResponse {
 export interface ConfigField {
   env_var: string
   label: string
+  description: string
   field_type: string  // text, password
   required: boolean
   value: string
 }
-
 export interface TranslatorConfigItem {
   translator: string
   display_name: string

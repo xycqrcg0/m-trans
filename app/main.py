@@ -682,7 +682,9 @@ _TRANSLATOR_CONFIG_META: dict[str, tuple[str, list[tuple[str, str, str, bool]]]]
     "chatgpt_2stage": ("ChatGPT 2-stage (OpenAI)", [
         ("OPENAI_API_KEY", "API Key", "password", True),
         ("OPENAI_API_BASE", "API Base URL", "text", False),
-        ("OPENAI_MODEL", "模型名称", "text", False),
+        ("OPENAI_MODEL", "模型名称（默认两阶段共用）", "text", False),
+        ("OPENAI_STAGE1_MODEL", "Stage 1 模型（OCR 纠错+阅读顺序重排，需视觉能力）", "text", False),
+        ("OPENAI_STAGE2_MODEL", "Stage 2 模型（结合画面上下文翻译）", "text", False),
     ]),
     "gemini": ("Gemini", [
         ("GEMINI_API_KEY", "API Key", "password", True),
@@ -759,6 +761,12 @@ async def get_translator_configs():
     _LLM_TRANSLATORS = {"deepseek", "chatgpt", "chatgpt_2stage", "gemini",
                          "gemini_2stage", "groq", "custom_openai", "sakura"}
 
+    _FIELD_DESCRIPTIONS = {
+        "OPENAI_STAGE1_MODEL": "第一阶段：发送原图给视觉模型，纠正 OCR 识别错误并按漫画阅读顺序重排文本。需要支持视觉的模型（如 gpt-4o）。",
+        "OPENAI_STAGE2_MODEL": "第二阶段：用重排后的文本结合原图画面上下文进行翻译。可用任意文本模型。",
+        "OPENAI_MODEL": "默认模型，Stage 1/2 未单独指定时共用此模型。",
+    }
+
     def _build_item(tid: str, display_name: str, fields_meta, category: str) -> TranslatorConfigItem:
         fields = []
         all_required_set = True
@@ -773,6 +781,7 @@ async def get_translator_configs():
             fields.append(ConfigField(
                 env_var=env_var, label=label, field_type=ftype,
                 required=required, value=val_display,
+                description=_FIELD_DESCRIPTIONS.get(env_var, ""),
             ))
         return TranslatorConfigItem(
             translator=tid, display_name=display_name,
