@@ -73,7 +73,7 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
       <Select value={value || '__default__'} onValueChange={(v) => onChange(v === '__default__' ? '' : v)}>
         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
         <SelectContent className="max-h-60">
-          <SelectItem value="__default__">默认（微软雅黑，支持中文）</SelectItem>
+          <SelectItem value="__default__">默认</SelectItem>
           {fonts.map((f) => (
             <SelectItem key={f.path} value={f.path}>
               {f.name}{f.cjk ? '' : '（不含中文，将回退）'}{f.builtin ? '' : '（自定义）'}{f.note ? ` — ${f.note}` : ''}
