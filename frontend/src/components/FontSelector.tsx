@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Upload, Trash2, Loader2, Pencil, Check, X } from 'lucide-react'
 import { listFonts, uploadFont, deleteFont, updateFontNote, type FontInfo } from '@/lib/api'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useToast } from '@/components/ui/toast'
 
 interface FontSelectorProps {
   value: string
@@ -16,6 +17,7 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
   const [noteDraft, setNoteDraft] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
 
   async function load() {
     try {
@@ -34,7 +36,8 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
     try {
       await uploadFont(file)
       await load()
-    } catch { /* ignore */ }
+      toast.success('字体上传成功')
+    } catch { toast.error('字体上传失败') }
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -45,18 +48,19 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
       const deleted = fonts.find(f => f.name === name)
       if (deleted && value === deleted.path) onChange('')
       await load()
-    } catch { /* ignore */ }
+      toast.success('字体已删除')
+    } catch { toast.error('删除字体失败') }
   }
 
   const selectedFont = fonts.find(f => f.path === value)
 
   async function handleSaveNote() {
     if (!selectedFont) return
-    setSavingNote(true)
     try {
       await updateFontNote(selectedFont.name, noteDraft)
       await load()
-    } catch { /* ignore */ }
+      toast.success('备注已保存')
+    } catch { toast.error('保存备注失败') }
     setSavingNote(false)
     setEditingNote(false)
   }
