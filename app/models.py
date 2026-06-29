@@ -59,6 +59,10 @@ class TextBlockResult(BaseModel):
     center: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     # Original bounding box size (width, height) for display
     size: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
+    font_size: int = 0
+    fg_color: list[int] = Field(default_factory=lambda: [0, 0, 0])
+    bg_color: list[int] = Field(default_factory=lambda: [255, 255, 255])
+    horizontal: bool = True
 class Page(BaseModel):
     filename: str
     upload_path: str
