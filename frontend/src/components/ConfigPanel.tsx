@@ -47,7 +47,8 @@ const LLM_TRANSLATORS = new Set([
   'gemini_2stage', 'custom_openai', 'sakura',
 ])
 
-// Short descriptions shown under the translator selector
+// Tags and descriptions shown under the translator selector.
+// Each entry: description text; tags rendered as badges in the dropdown.
 const _TRANSLATOR_DESC: Record<string, string> = {
   google: '免费网页翻译，无需配置，质量一般',
   youdao: '有道智云翻译，需要应用 ID 和密钥',
@@ -55,19 +56,56 @@ const _TRANSLATOR_DESC: Record<string, string> = {
   deepl: 'DeepL 翻译，翻译质量较高，需要 Auth Key',
   papago: 'Naver Papago 翻译，适合韩语/日语',
   caiyun: '彩云小译，需要访问令牌',
-  chatgpt: 'OpenAI GPT 翻译，质量高，需要 API Key',
-  chatgpt_2stage: 'ChatGPT 两阶段翻译（先初翻再校对），质量更高但更慢',
+  chatgpt: '单阶段纯文本翻译，质量高，需要 API Key',
+  chatgpt_2stage: '两阶段：先视觉纠错+重排，再结合画面翻译，质量最高但慢一倍',
   none: '不翻译，仅擦字',
   original: '保留原文，不做任何翻译',
   sakura: '本地 LLM 翻译（Sakura 模型），需要本地部署推理服务',
-  deepseek: 'DeepSeek API 翻译，性价比高',
-  groq: 'Groq API 翻译，推理速度极快',
-  gemini: 'Google Gemini 翻译',
-  gemini_2stage: 'Gemini 两阶段翻译',
-  custom_openai: '自定义 OpenAI 兼容 API（如 Ollama、vLLM 等）',
+  deepseek: '单阶段纯文本翻译，性价比高',
+  groq: '单阶段纯文本翻译，推理速度极快',
+  gemini: '单阶段纯文本翻译，Google Gemini API',
+  gemini_2stage: '两阶段：先视觉纠错+重排，再结合画面翻译',
+  custom_openai: '单阶段纯文本翻译，连接任意 OpenAI 兼容 API（Ollama/vLLM 等）',
   sugoi: '离线翻译（Sugoi V4.0 模型），仅支持日→英，首次使用需下载模型',
   jparacrawl: '离线翻译（JParaCrawl 基础模型），仅支持日↔英，首次使用需下载模型',
   jparacrawl_big: '离线翻译（JParaCrawl 大模型），仅支持日↔英，首次使用需下载模型',
+}
+
+// Feature tags for each translator: rendered as small badges in the dropdown.
+const _TRANSLATOR_TAGS: Record<string, string[]> = {
+  google: ['在线', '免费'],
+  youdao: ['在线'],
+  baidu: ['在线'],
+  deepl: ['在线'],
+  papago: ['在线'],
+  caiyun: ['在线'],
+  chatgpt: ['在线', '单阶段', '纯文本'],
+  chatgpt_2stage: ['在线', '两阶段', '需视觉'],
+  none: [],
+  original: [],
+  sakura: ['本地', '单阶段', '纯文本'],
+  deepseek: ['在线', '单阶段', '纯文本'],
+  groq: ['在线', '单阶段', '纯文本'],
+  gemini: ['在线', '单阶段', '纯文本'],
+  gemini_2stage: ['在线', '两阶段', '需视觉'],
+  custom_openai: ['在线/本地', '单阶段', '纯文本'],
+  sugoi: ['离线', '仅日→英'],
+  jparacrawl: ['离线', '仅日↔英'],
+  jparacrawl_big: ['离线', '仅日↔英'],
+}
+
+const _TAG_COLORS: Record<string, string> = {
+  '在线': 'bg-blue-50 text-blue-600',
+  '在线/本地': 'bg-indigo-50 text-indigo-600',
+  '离线': 'bg-green-50 text-green-600',
+  '本地': 'bg-green-50 text-green-600',
+  '免费': 'bg-slate-100 text-slate-500',
+  '单阶段': 'bg-slate-100 text-slate-500',
+  '两阶段': 'bg-amber-50 text-amber-600',
+  '需视觉': 'bg-purple-50 text-purple-600',
+  '纯文本': 'bg-slate-100 text-slate-500',
+  '仅日→英': 'bg-red-50 text-red-500',
+  '仅日↔英': 'bg-red-50 text-red-500',
 }
 
 export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
@@ -138,11 +176,21 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
               <Select value={config.translator ?? 'google'} onValueChange={(v) => onChange({ ...config, translator: v })}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent className="max-h-60 overflow-y-auto">
-                  {translators.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}{t.requires_key && !t.configured ? ' ⚠️' : ''}
-                    </SelectItem>
-                  ))}
+                  {translators.map((t) => {
+                    const tags = _TRANSLATOR_TAGS[t.id]
+                    return (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-1">
+                          <span>{t.name}{t.requires_key && !t.configured ? ' ⚠️' : ''}</span>
+                          {tags?.map(tag => (
+                            <span key={tag} className={`rounded px-1 text-[10px] leading-tight ${_TAG_COLORS[tag] ?? 'bg-slate-100 text-slate-500'}`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </span>
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
               {selectedTranslator && (
