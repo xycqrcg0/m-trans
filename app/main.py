@@ -569,6 +569,16 @@ async def get_options():
         TranslatorOption(id=Translator.jparacrawl.value, name="JParaCrawl", requires_key=False, configured=True, supported_langs=_LANG_RESTRICTED["jparacrawl"]),
         TranslatorOption(id=Translator.jparacrawl_big.value, name="JParaCrawl (Big)", requires_key=False, configured=True, supported_langs=_LANG_RESTRICTED["jparacrawl_big"]),
     ]
+    # Append user-created custom translator presets as selectable options.
+    # Their IDs use the "custom:" prefix so _resolve_custom_translator can
+    # map them to the right engine at translation time.
+    for preset in _load_custom_translators():
+        translators.append(TranslatorOption(
+            id=f"custom:{preset['id']}",
+            name=preset.get("name", "Custom"),
+            requires_key=False,
+            configured=True,
+        ))
     detectors = [
         OptionItem(id=Detector.ctd.value, name="CTD"),
         OptionItem(id=Detector.default.value, name="Default"),
@@ -810,6 +820,90 @@ async def save_translator_config(payload: dict):
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     return {"status": "saved", "translator": tid}
 
+
+# ── Custom translator configs (named OpenAI/Custom OpenAI presets) ───────────
+
+_CUSTOM_TRANSLATORS_PATH = settings.cache_dir / "custom_translators.json"
+
+
+def _load_custom_translators() -> list[dict]:
+    if not _CUSTOM_TRANSLATORS_PATH.exists():
+        return []
+    try:
+        return json.loads(_CUSTOM_TRANSLATORS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _save_custom_translators(data: list[dict]) -> None:
+    _CUSTOM_TRANSLATORS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+@app.get("/api/config/custom-translators", summary="获取自定义翻译器配置列表")
+async def list_custom_translators():
+    """List user-created named translator presets (OpenAI / Custom OpenAI)."""
+    return {"items": _load_custom_translators()}
+
+
+@app.post("/api/config/custom-translators", summary="创建/更新自定义翻译器配置")
+async def save_custom_translator(payload: dict):
+    """Create or update a named translator preset.
+
+    Body: {
+        id?: string,         # omit to create new
+        name: string,        # display name
+        engine: "openai" | "custom_openai",  # translation logic
+        api_key: string,
+        api_base: string,
+        model: string,
+    }
+    """
+    import uuid as _uuid
+    data = _load_custom_translators()
+    cid = (payload or {}).get("id", "").strip()
+    name = (payload or {}).get("name", "").strip()
+    engine = (payload or {}).get("engine", "custom_openai").strip()
+    if engine not in ("openai", "custom_openai"):
+        raise HTTPException(status_code=422, detail="engine 必须是 openai 或 custom_openai")
+    if not name:
+        raise HTTPException(status_code=422, detail="名称不能为空")
+
+    entry = {
+        "id": cid or _uuid.uuid4().hex[:12],
+        "name": name,
+        "engine": engine,
+        "api_key": (payload or {}).get("api_key", ""),
+        "api_base": (payload or {}).get("api_base", ""),
+        "model": (payload or {}).get("model", ""),
+    }
+
+    if cid:
+        found = False
+        for i, d in enumerate(data):
+            if d.get("id") == cid:
+                # Preserve existing api_key if the new one is empty (masked edit)
+                if not entry["api_key"] and d.get("api_key"):
+                    entry["api_key"] = d["api_key"]
+                data[i] = entry
+                found = True
+                break
+        if not found:
+            raise HTTPException(status_code=404, detail="配置不存在")
+    else:
+        data.append(entry)
+
+    _save_custom_translators(data)
+    return entry
+
+
+@app.delete("/api/config/custom-translators/{cid}", summary="删除自定义翻译器配置")
+async def delete_custom_translator(cid: str):
+    data = _load_custom_translators()
+    new_data = [d for d in data if d.get("id") != cid]
+    if len(new_data) == len(data):
+        raise HTTPException(status_code=404, detail="配置不存在")
+    _save_custom_translators(new_data)
+    return {"deleted": cid}
 
 @app.get("/api/models/status", summary="检查模型下载状态")
 async def get_model_status():

@@ -3,12 +3,16 @@ import { KeyRound, Check, AlertCircle, Loader2, Type, Upload, Trash2, Pencil, X,
 import {
   getTranslatorConfigs,
   saveTranslatorConfig,
+  listCustomTranslators,
+  saveCustomTranslator,
+  deleteCustomTranslator,
   listFonts,
   uploadFont,
   deleteFont,
   updateFontNote,
   type TranslatorConfigItem,
   type FontInfo,
+  type CustomTranslatorPreset,
 } from '@/lib/api'
 
 type Tab = 'translator' | 'llm' | 'font'
@@ -58,6 +62,9 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
   const [loading, setLoading] = useState(true)
   const [editValues, setEditValues] = useState<Record<string, Record<string, string>>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [presets, setPresets] = useState<CustomTranslatorPreset[]>([])
+  const [editingPreset, setEditingPreset] = useState<Partial<CustomTranslatorPreset> | null>(null)
+  const [savingPreset, setSavingPreset] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -73,7 +80,14 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
     }
   }
 
-  useEffect(() => { load() }, [category])
+  async function loadPresets() {
+    try {
+      const res = await listCustomTranslators()
+      setPresets(res.items)
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { load(); loadPresets() }, [category])
 
   async function handleSave(translator: string) {
     setSaving(translator)
@@ -86,15 +100,32 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
     }
   }
 
+  async function handleSavePreset() {
+    if (!editingPreset) return
+    setSavingPreset(true)
+    try {
+      await saveCustomTranslator(editingPreset)
+      setEditingPreset(null)
+      await loadPresets()
+    } catch { /* ignore */ }
+    setSavingPreset(false)
+  }
+
+  async function handleDeletePreset(id: string) {
+    try {
+      await deleteCustomTranslator(id)
+      await loadPresets()
+    } catch { /* ignore */ }
+  }
+
   if (loading) return <div className="text-center text-sm text-slate-400 py-8">加载中…</div>
 
-  if (configs.length === 0) return (
+  if (configs.length === 0 && category !== 'translator') return (
     <p className="text-sm text-slate-400 py-8 text-center">无需配置</p>
   )
 
-  // Group configs that share the same required env_var (e.g. ChatGPT + ChatGPT
-  // 2-stage share OPENAI_API_KEY; Gemini + Gemini 2-stage share GEMINI_API_KEY).
-  // Each group renders as one card with shared fields + per-engine extra fields.
+  // Group configs that share the same required env_var, but render each
+  // config's fields independently (no shared input boxes).
   function getConfigGroup(c: TranslatorConfigItem): string {
     const requiredKeys = c.fields.filter(f => f.required).map(f => f.env_var).sort().join(',')
     return requiredKeys || c.translator
@@ -123,22 +154,6 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
       {groupKeys.map((gk) => {
         const group = groupMap[gk]
         const isMulti = group.length > 1
-        // Shared fields = fields with the same env_var across all configs in group
-        const sharedEnvVars = new Set(
-          group[0].fields.filter(f =>
-            group.every(c => c.fields.some(cf => cf.env_var === f.env_var))
-          ).map(f => f.env_var)
-        )
-        const sharedFields = group[0].fields.filter(f => sharedEnvVars.has(f.env_var))
-        // Extra fields per engine (only for multi-engine groups)
-        const extraByEngine = isMulti ? group.map(c => ({
-          translator: c.translator,
-          display_name: c.display_name,
-          fields: c.fields.filter(f => !sharedEnvVars.has(f.env_var)),
-        })).filter(e => e.fields.length > 0) : []
-
-        // Use the first translator's save handler for shared fields;
-        // per-engine extra fields save to their own translator.
         const allConfigured = group.every(c => c.configured)
 
         return (
@@ -166,88 +181,176 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
               )}
             </div>
 
-            {/* Shared fields */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              {sharedFields.map((f) => (
-                <div key={f.env_var} className="space-y-1">
-                  <label className="text-xs font-medium text-slate-500">
-                    {f.label}
-                    {f.required && <span className="text-red-400"> *</span>}
-                    {!f.required && <span className="text-slate-300">（可选）</span>}
-                  </label>
-                  <input
-                    type={f.field_type === 'password' ? 'password' : 'text'}
-                    placeholder={f.value || `输入${f.label}`}
-                    value={editValues[group[0].translator]?.[f.env_var] ?? ''}
-                    onChange={(e) => {
-                      // Update shared field on all translators in the group
-                      const newVal = e.target.value
-                      setEditValues(prev => {
-                        const next = { ...prev }
-                        for (const c of group) {
-                          next[c.translator] = { ...next[c.translator], [f.env_var]: newVal }
-                        }
-                        return next
-                      })
-                    }}
-                    className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Per-engine extra fields (e.g. 2-stage stage1/stage2 model) */}
-            {extraByEngine.map((e) => (
-              <div key={e.translator} className="space-y-2 rounded-md bg-slate-50 p-3">
-                <span className="text-xs font-medium text-slate-500">{e.display_name} 专有配置</span>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {e.fields.map((f) => (
-                    <div key={f.env_var} className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500">
-                        {f.label}
-                        {f.required && <span className="text-red-400"> *</span>}
-                        {!f.required && <span className="text-slate-300">（可选）</span>}
-                      </label>
-                      <input
-                        type={f.field_type === 'password' ? 'password' : 'text'}
-                        placeholder={f.value || `输入${f.label}`}
-                        value={editValues[e.translator]?.[f.env_var] ?? ''}
-                        onChange={(e2) => setEditValues({
-                          ...editValues,
-                          [e.translator]: {
-                            ...editValues[e.translator],
-                            [f.env_var]: e2.target.value,
-                          },
-                        })}
-                        className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Save buttons: one per translator in the group */}
-            <div className="flex items-center gap-2">
-              {group.map((c) => {
-                const isSaving = saving === c.translator
-                return (
+            {/* Each config's fields rendered independently (no shared inputs) */}
+            <div className={isMulti ? 'space-y-3' : ''}>
+              {group.map((c) => (
+                <div key={c.translator} className={isMulti ? 'rounded-md bg-slate-50 p-3 space-y-2' : 'space-y-2'}>
+                  {isMulti && (
+                    <span className="text-xs font-medium text-slate-500">{c.display_name}</span>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {c.fields.map((f) => (
+                      <div key={f.env_var} className="space-y-1">
+                        <label className="text-xs font-medium text-slate-500">
+                          {f.label}
+                          {f.required && <span className="text-red-400"> *</span>}
+                          {!f.required && <span className="text-slate-300">（可选）</span>}
+                        </label>
+                        <input
+                          type={f.field_type === 'password' ? 'password' : 'text'}
+                          placeholder={f.value || `输入${f.label}`}
+                          value={editValues[c.translator]?.[f.env_var] ?? ''}
+                          onChange={(e) => setEditValues({
+                            ...editValues,
+                            [c.translator]: {
+                              ...editValues[c.translator],
+                              [f.env_var]: e.target.value,
+                            },
+                          })}
+                          className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
+                        />
+                      </div>
+                    ))}
+                  </div>
                   <button
-                    key={c.translator}
                     onClick={() => handleSave(c.translator)}
-                    disabled={isSaving}
+                    disabled={saving === c.translator}
                     className="rounded-md bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
                   >
-                    {isSaving ? (
+                    {saving === c.translator ? (
                       <span className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" />保存中…</span>
-                    ) : isMulti ? `保存 ${c.display_name}` : '保存'}
+                    ) : '保存'}
                   </button>
-                )
-              })}
+                </div>
+              ))}
             </div>
           </div>
         )
       })}
+
+      {/* Custom OpenAI presets — only on translator tab */}
+      {category === 'translator' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-slate-500" />
+              <span className="font-medium text-slate-900">自定义翻译器配置</span>
+            </div>
+            <button
+              onClick={() => setEditingPreset({ name: '', engine: 'custom_openai', api_key: '', api_base: '', model: '' })}
+              className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              + 新建
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            创建命名的翻译器配置，可选择使用 OpenAI（视觉翻译）或 Custom OpenAI（纯文本翻译）逻辑。创建后可在新建任务时选择。
+          </p>
+
+          {editingPreset && (
+            <div className="rounded-md bg-slate-50 p-3 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">名称</label>
+                  <input
+                    type="text"
+                    value={editingPreset.name ?? ''}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                    placeholder="如：我的 GPT-4o"
+                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">翻译逻辑</label>
+                  <select
+                    value={editingPreset.engine ?? 'custom_openai'}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, engine: e.target.value as 'openai' | 'custom_openai' })}
+                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  >
+                    <option value="custom_openai">Custom OpenAI（纯文本，支持任意兼容 API）</option>
+                    <option value="openai">OpenAI（视觉翻译，含画面上下文）</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">API Key</label>
+                  <input
+                    type="password"
+                    value={editingPreset.api_key ?? ''}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, api_key: e.target.value })}
+                    placeholder="留空则保留原值"
+                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">API Base URL</label>
+                  <input
+                    type="text"
+                    value={editingPreset.api_base ?? ''}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, api_base: e.target.value })}
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-slate-500">模型名称</label>
+                  <input
+                    type="text"
+                    value={editingPreset.model ?? ''}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, model: e.target.value })}
+                    placeholder="如：gpt-4o、qwen2.5:14b"
+                    className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSavePreset}
+                  disabled={savingPreset}
+                  className="rounded-md bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {savingPreset ? <Loader2 className="h-3 w-3 animate-spin" /> : '保存配置'}
+                </button>
+                <button
+                  onClick={() => setEditingPreset(null)}
+                  className="rounded-md border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          {presets.length > 0 && (
+            <div className="space-y-2">
+              {presets.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate text-sm font-medium text-slate-700">{p.name}</span>
+                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                      {p.engine === 'openai' ? 'OpenAI 视觉' : 'Custom OpenAI'}
+                    </span>
+                    {p.model && <span className="truncate text-xs text-slate-400">{p.model}</span>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => setEditingPreset({ ...p, api_key: '' })}
+                      className="rounded p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDeletePreset(p.id)}
+                      className="rounded p-1 text-slate-400 hover:text-red-500"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

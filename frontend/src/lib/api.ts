@@ -128,6 +128,29 @@ export async function getTranslatorConfigs(): Promise<TranslatorConfigItem[]> {
   return data
 }
 
+
+export interface CustomTranslatorPreset {
+  id: string
+  name: string
+  engine: 'openai' | 'custom_openai'
+  api_key: string
+  api_base: string
+  model: string
+}
+
+export async function listCustomTranslators(): Promise<{ items: CustomTranslatorPreset[] }> {
+  const { data } = await http.get('/config/custom-translators')
+  return data
+}
+
+export async function saveCustomTranslator(preset: Partial<CustomTranslatorPreset>): Promise<CustomTranslatorPreset> {
+  const { data } = await http.post('/config/custom-translators', preset)
+  return data
+}
+
+export async function deleteCustomTranslator(id: string): Promise<void> {
+  await http.delete(`/config/custom-translators/${id}`)
+}
 export async function saveTranslatorConfig(payload: {
   translator: string
   values: Record<string, string>

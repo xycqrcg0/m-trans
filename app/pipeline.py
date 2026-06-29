@@ -83,8 +83,50 @@ def _export_glossary_for_gpt(task_cfg: TaskConfig) -> Optional[str]:
     return str(path)
 
 
+def _resolve_custom_translator(task_cfg: TaskConfig) -> str:
+    """If task_cfg.translator references a custom preset (custom:<id>),
+    load it, apply env vars, and return the real engine key ('chatgpt' or
+    'custom_openai'). Otherwise return task_cfg.translator unchanged.
+    """
+    tid = task_cfg.translator
+    if not tid or not tid.startswith("custom:"):
+        return tid
+    cid = tid[len("custom:"):]
+    import json as _json
+    from config.settings import settings as _settings
+    path = _settings.cache_dir / "custom_translators.json"
+    if not path.exists():
+        return tid
+    try:
+        presets = _json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return tid
+    preset = next((p for p in presets if p.get("id") == cid), None)
+    if not preset:
+        return tid
+    engine = preset.get("engine", "custom_openai")
+    # Apply env vars so the translator picks up the credentials at init time
+    if engine == "openai":
+        if preset.get("api_key"):
+            os.environ["OPENAI_API_KEY"] = preset["api_key"]
+        if preset.get("api_base"):
+            os.environ["OPENAI_API_BASE"] = preset["api_base"]
+        if preset.get("model"):
+            os.environ["OPENAI_MODEL"] = preset["model"]
+        return "chatgpt"
+    else:
+        if preset.get("api_key"):
+            os.environ["CUSTOM_OPENAI_API_KEY"] = preset["api_key"]
+        if preset.get("api_base"):
+            os.environ["CUSTOM_OPENAI_API_BASE"] = preset["api_base"]
+        if preset.get("model"):
+            os.environ["CUSTOM_OPENAI_MODEL"] = preset["model"]
+        return "custom_openai"
+
+
 def _build_config(task_cfg: TaskConfig) -> Config:
-    translator_key = _pick_enum(Translator, task_cfg.translator, Translator.youdao)
+    real_translator = _resolve_custom_translator(task_cfg)
+    translator_key = _pick_enum(Translator, real_translator, Translator.youdao)
     detector_key = _pick_enum(Detector, task_cfg.detector, Detector.default)
     ocr_key = _pick_enum(Ocr, task_cfg.ocr, Ocr.ocr48px)
     inpainter_key = _pick_enum(Inpainter, task_cfg.inpainter, Inpainter.lama_large)
@@ -114,7 +156,7 @@ def _make_polish_fn(task_cfg: TaskConfig):
     # LLM translators already produce natural, context-aware output; running a
     # second LLM (Claude) polish on top is redundant work and can cause style
     # conflicts. Skip polish for those and let the raw translation stand.
-    if task_cfg.translator in _GPT_TRANSLATORS:
+    if _resolve_custom_translator(task_cfg) in _GPT_TRANSLATORS or task_cfg.translator.startswith("custom:"):
         logger.info(
             "Polish disabled: translator '%s' is already LLM-based, skipping "
             "redundant Claude polish",
