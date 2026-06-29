@@ -234,19 +234,6 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
             </label>
           </div>
         )}
-        {/* 字体管理 */}
-        {!isEraseOnly && (
-          <div className="space-y-2 rounded-md border border-slate-100 p-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-slate-700">字体管理</label>
-              <span className="text-xs text-slate-400">上传 / 删除 / 备注</span>
-            </div>
-            <FontSelector value={config.font_path ?? ''} onChange={(p) => onChange({ ...config, font_path: p })} />
-            <p className="text-xs text-slate-400">
-              选择的字体将用于嵌字渲染。上传后可在嵌字前编辑中切换并预览效果。
-            </p>
-          </div>
-        )}
 
         {/* 高级设置 */}
         <button
@@ -257,6 +244,7 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
           {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           高级设置
         </button>
+
         {showAdvanced && (
           <div className="space-y-4 rounded-md border border-slate-100 p-4">
             <div className="grid gap-4 sm:grid-cols-3">
@@ -303,6 +291,13 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
                   className="w-16 rounded-md border border-slate-200 px-2 py-1 text-sm"
                 />
                 <span className="text-xs text-slate-400">页（GPT 翻译器用前 N 页译文做上下文）</span>
+              </div>
+            )}
+
+            {!isEraseOnly && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">嵌字字体</label>
+                <FontSelector value={config.font_path ?? ''} onChange={(p) => onChange({ ...config, font_path: p })} />
               </div>
             )}
           </div>
