@@ -63,7 +63,7 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
     setLoading(true)
     try {
       const data = await getTranslatorConfigs()
-      const filtered = data.filter(c => c.category === category || (category === 'llm' && c.category === 'polish'))
+      const filtered = data.filter(c => category === 'llm' ? c.category === 'polish' : c.category !== 'polish')
       setConfigs(filtered)
       const edits: Record<string, Record<string, string>> = {}
       filtered.forEach((c) => { edits[c.translator] = {} })
@@ -96,12 +96,12 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
     <div className="space-y-4">
       {category === 'llm' && (
         <p className="text-sm text-slate-500">
-          LLM 翻译引擎和润色模型的 API 配置。填好 Key 和 Base URL 即可使用。
+          LLM 润色模型配置（支持任意 OpenAI 兼容 API）。填好 Key 和 Base URL 即可使用。
         </p>
       )}
       {category === 'translator' && (
         <p className="text-sm text-slate-500">
-          传统翻译引擎的 API 配置。Google、Sakura、Sugoi、JParaCrawl 等无需配置。
+          翻译引擎的 API 配置，包括传统引擎和 LLM 引擎。Google、Sakura、Sugoi、JParaCrawl 等无需配置。
         </p>
       )}
 
