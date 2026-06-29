@@ -171,15 +171,19 @@ async def create_task(
             extracted = _extract_images_from_archive(content, filename)
             if not extracted:
                 raise HTTPException(status_code=400, detail=f"压缩包 {filename} 中没有找到图片文件")
+            # Use the archive filename (without extension) as the task name
+            if not task.name:
+                task.name = Path(filename).stem or filename
             for arcname, img_bytes in extracted:
                 suffix = Path(arcname).suffix or ".jpg"
                 upload_path = upload_dir / f"page_{page_idx:04d}{suffix}"
                 upload_path.write_bytes(img_bytes)
-                pages.append(Page(filename=arcname, upload_path=str(upload_path)))
-                page_idx += 1
         elif ext in _IMAGE_EXTS or (upload.content_type or "").startswith("image/"):
             if len(content) > 20 * 1024 * 1024:
                 raise HTTPException(status_code=413, detail=f"图片 {filename} 超过 20MB 限制")
+            # Use the image filename as the task name
+            if not task.name:
+                task.name = filename
             suffix = ext or ".jpg"
             upload_path = upload_dir / f"page_{page_idx:04d}{suffix}"
             upload_path.write_bytes(content)

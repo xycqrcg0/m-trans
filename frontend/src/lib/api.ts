@@ -53,6 +53,7 @@ export interface Page {
 
 export interface Task {
   id: string
+  name: string
   status: TaskStatus
   created_at: string
   config: TaskConfig

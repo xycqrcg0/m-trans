@@ -75,6 +75,7 @@ class Page(BaseModel):
 
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    name: str = ""
     status: TaskStatus = TaskStatus.pending
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     config: TaskConfig = Field(default_factory=TaskConfig)

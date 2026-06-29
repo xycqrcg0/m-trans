@@ -55,7 +55,7 @@ export function TaskCard({ task, onChanged }: TaskCardProps) {
       : task.error ?? '失败')
     : progress.message_cn
 
-  const filename = task.pages[0]?.filename ?? '未知文件'
+  const displayName = task.name || task.pages[0]?.filename || '未知文件'
   const isArchive = task.pages.length > 1
   const createdAt = new Date(task.created_at).toLocaleString('zh-CN')
 
@@ -90,7 +90,7 @@ export function TaskCard({ task, onChanged }: TaskCardProps) {
               : <FileText className="h-4 w-4 text-slate-400 shrink-0" />
             }
             <p className="truncate text-sm font-medium text-slate-900">
-              {isArchive ? `${task.pages.length} 张图片` : filename}
+              {displayName}
             </p>
           </div>
           <p className="text-xs text-slate-400 pl-6">{createdAt}</p>
