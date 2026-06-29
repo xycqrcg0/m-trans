@@ -38,6 +38,29 @@ const _TRANSLATOR_TAGS: Record<string, { text: string; cls: string }[]> = {
   jparacrawl_big: [{ text: '离线', cls: 'bg-green-50 text-green-600' }, { text: '仅日↔英', cls: 'bg-red-50 text-red-500' }],
 }
 
+// Descriptions shown on config cards explaining each translator's behavior.
+const _TRANSLATOR_DESC: Record<string, string> = {
+  google: '免费网页翻译，无需配置',
+  youdao: '有道智云翻译',
+  baidu: '百度翻译开放平台',
+  deepl: 'DeepL 翻译，质量较高',
+  papago: 'Naver Papago，适合韩语/日语',
+  caiyun: '彩云小译',
+  chatgpt: '单阶段：直接将 OCR 文本发给 LLM 翻译，不看图',
+  chatgpt_2stage: '两阶段：第一阶段发送原图给视觉模型纠正 OCR 错误并按阅读顺序重排，第二阶段结合画面上下文翻译。更准但慢一倍、贵一倍',
+  none: '不翻译，仅擦字',
+  original: '保留原文，不做任何翻译',
+  sakura: '本地 LLM 翻译（Sakura 模型），需本地部署推理服务',
+  deepseek: '单阶段纯文本翻译，性价比高',
+  groq: '单阶段纯文本翻译，推理速度极快',
+  gemini: '单阶段：直接将 OCR 文本发给 Gemini 翻译，不看图',
+  gemini_2stage: '两阶段：第一阶段发送原图给视觉模型纠正 OCR 错误并按阅读顺序重排，第二阶段结合画面上下文翻译',
+  custom_openai: '单阶段纯文本翻译，连接任意 OpenAI 兼容 API（Ollama/vLLM 等）',
+  sugoi: '离线翻译，仅支持日→英，首次使用需下载模型',
+  jparacrawl: '离线翻译，仅支持日↔英，首次使用需下载模型',
+  jparacrawl_big: '离线翻译（大模型），仅支持日↔英，首次使用需下载模型',
+}
+
 type Tab = 'translator' | 'llm' | 'font'
 
 export default function Settings() {
@@ -184,7 +207,9 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
               </span>
             )}
           </div>
-
+          {_TRANSLATOR_DESC[c.translator] && (
+            <p className="text-xs text-slate-400">{_TRANSLATOR_DESC[c.translator]}</p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             {c.fields.map((f) => (
               <div key={f.env_var} className="space-y-1">
@@ -261,9 +286,14 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
                     onChange={(e) => setEditingPreset({ ...editingPreset, engine: e.target.value as 'openai' | 'custom_openai' })}
                     className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                   >
-                    <option value="custom_openai">Custom OpenAI（纯文本，支持任意兼容 API）</option>
-                    <option value="openai">OpenAI（视觉翻译，含画面上下文）</option>
+                    <option value="custom_openai">Custom OpenAI（单阶段·纯文本）</option>
+                    <option value="openai">OpenAI（两阶段·需视觉）</option>
                   </select>
+                  <p className="text-xs text-slate-400">
+                    {(editingPreset.engine ?? 'custom_openai') === 'openai'
+                      ? '两阶段：第一阶段发送原图给视觉模型纠正 OCR 并重排阅读顺序，第二阶段结合画面翻译。更准但更慢更贵'
+                      : '单阶段：直接将 OCR 文本发给 LLM 翻译，不看图。支持 Ollama/vLLM 等任意 OpenAI 兼容 API'}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-500">API Key</label>
@@ -316,31 +346,44 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
 
           {presets.length > 0 && (
             <div className="space-y-2">
-              {presets.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate text-sm font-medium text-slate-700">{p.name}</span>
-                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                      {p.engine === 'openai' ? 'OpenAI 视觉' : 'Custom OpenAI'}
-                    </span>
-                    {p.model && <span className="truncate text-xs text-slate-400">{p.model}</span>}
+              {presets.map((p) => {
+                const isOpenaiEngine = p.engine === 'openai'
+                return (
+                  <div key={p.id} className="rounded-md border border-slate-100 px-3 py-2 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                        <span className="truncate text-sm font-medium text-slate-700">{p.name}</span>
+                        <span className={`shrink-0 rounded px-1 py-0 text-[10px] leading-tight ${isOpenaiEngine ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {isOpenaiEngine ? '需视觉' : '纯文本'}
+                        </span>
+                        <span className="shrink-0 rounded px-1 py-0 text-[10px] leading-tight bg-amber-50 text-amber-600">
+                          {isOpenaiEngine ? '两阶段' : '单阶段'}
+                        </span>
+                        {p.model && <span className="truncate text-xs text-slate-400">{p.model}</span>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setEditingPreset({ ...p, api_key: '' })}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePreset(p.id)}
+                          className="rounded p-1 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {isOpenaiEngine
+                        ? '两阶段：先视觉纠错+重排，再结合画面翻译（走 ChatGPT 逻辑）'
+                        : '单阶段纯文本翻译，连接任意 OpenAI 兼容 API（走 Custom OpenAI 逻辑）'}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setEditingPreset({ ...p, api_key: '' })}
-                      className="rounded p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => handleDeletePreset(p.id)}
-                      className="rounded p-1 text-slate-400 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
