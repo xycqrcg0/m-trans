@@ -40,6 +40,9 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   // Backend-rendered DEFAULT embedding (text at original positions, no offsets).
   // Refreshed when text content changes; offsets never trigger a re-render.
   const [renderedUrl, setRenderedUrl] = useState<string | null>(null)
+  // Cache of rendered preview URLs by page index — switching back to a
+  // previously rendered page restores from cache instead of re-rendering.
+  const renderCacheRef = useRef<Record<number, string>>({})
   const [rendering, setRendering] = useState(false)
   const [autoRender, setAutoRender] = useState(true)
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -148,7 +151,11 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       )
       const offs = currentPage.text_blocks.map(() => [0, 0])
       const url = await renderPreview(taskId, pageIndex, texts, offs)
-      setRenderedUrl(old => { if (old) URL.revokeObjectURL(old); return url })
+      // Revoke the previously cached URL for this page (if any) to avoid leaks
+      const oldCached = renderCacheRef.current[pageIndex]
+      if (oldCached && oldCached !== url) URL.revokeObjectURL(oldCached)
+      renderCacheRef.current[pageIndex] = url
+      setRenderedUrl(old => { if (old && old !== url) URL.revokeObjectURL(old); return url })
     } catch (e) {
       const msg = e && typeof e === 'object' && 'code' in e && e.code === 'ECONNABORTED'
         ? '预览渲染超时，请稍后重试'
@@ -167,14 +174,20 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
     img.src = inpaintedUrl
   }, [inpaintedUrl])
 
-  // First render of the default embedding once blocks are available.
+  // First render: if we have a cached render for this page, restore it;
+  // otherwise trigger a new render once blocks are available.
   useEffect(() => {
-    if (currentPage && !renderedUrl) void renderDefault()
-  }, [currentPage, renderedUrl, renderDefault])
+    if (!currentPage) return
+    const cached = renderCacheRef.current[pageIndex]
+    if (cached) {
+      setRenderedUrl(cached)
+    } else if (!renderedUrl) {
+      void renderDefault()
+    }
+  }, [currentPage, pageIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Page switch: drop the stale render (different geometry) and selection.
+  // Page switch: clear selection (but keep cached URLs).
   useEffect(() => {
-    setRenderedUrl(old => { if (old) URL.revokeObjectURL(old); return null })
     setSelected(null)
   }, [pageIndex])
 
@@ -191,8 +204,14 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edits, autoRender])
 
-  // Revoke object URL on unmount.
-  useEffect(() => () => { if (renderedUrl) URL.revokeObjectURL(renderedUrl) }, [renderedUrl])
+  // Revoke all cached object URLs on unmount.
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(renderCacheRef.current)) {
+        URL.revokeObjectURL(url)
+      }
+    }
+  }, [])
 
   async function handleSubmit() {
     setSubmitting(true)
