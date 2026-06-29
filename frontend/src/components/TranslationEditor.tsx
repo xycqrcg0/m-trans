@@ -30,6 +30,8 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   const [pages, setPages] = useState<EditablePage[]>([])
   const [edits, setEdits] = useState<Record<string, Record<number, string>>>({})
   const [offsets, setOffsets] = useState<Record<string, Record<number, [number, number]>>>({})
+  // Undo stacks keyed by `${pageKey}:${blockIdx}` — each entry is a prior text value.
+  const [undoStacks, setUndoStacks] = useState<Record<string, string[]>>({})
   const [selected, setSelected] = useState<number | null>(null)
   const [imgSize, setImgSize] = useState({ w: 1, h: 1 })
   const [loading, setLoading] = useState(true)
@@ -81,7 +83,27 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   ), [edits, pageKey])
 
   function setEditText(bIdx: number, text: string) {
+    const undoKey = `${pageKey}:${bIdx}`
+    // Push the current value onto the undo stack before replacing it.
+    setUndoStacks(prev => {
+      const stack = prev[undoKey] ?? []
+      const current = edits[pageKey]?.[bIdx] ?? (currentPage?.text_blocks[bIdx]?.polished_text || currentPage?.text_blocks[bIdx]?.translated_text || '')
+      // Don't push duplicates (e.g. rapid typing produces many identical intermediate states)
+      if (stack.length > 0 && stack[stack.length - 1] === current) return prev
+      return { ...prev, [undoKey]: [...stack, current].slice(-50) }
+    })
     setEdits(prev => ({ ...prev, [pageKey]: { ...(prev[pageKey] ?? {}), [bIdx]: text } }))
+  }
+
+  function undoEdit(bIdx: number) {
+    const undoKey = `${pageKey}:${bIdx}`
+    setUndoStacks(prev => {
+      const stack = prev[undoKey] ?? []
+      if (stack.length === 0) return prev
+      const last = stack[stack.length - 1]
+      setEdits(e => ({ ...e, [pageKey]: { ...(e[pageKey] ?? {}), [bIdx]: last } }))
+      return { ...prev, [undoKey]: stack.slice(0, -1) }
+    })
   }
 
   function handleOffsetChange(bIdx: number, dx: number, dy: number) {
@@ -379,10 +401,26 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
             </div>
           </div>
           <div>
-            <label className="text-xs text-slate-500">译文（可编辑）</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-slate-500">译文（可编辑）</label>
+              {(undoStacks[`${pageKey}:${selected}`]?.length ?? 0) > 0 && (
+                <button
+                  onClick={() => undoEdit(selected)}
+                  className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-700"
+                >
+                  <RotateCcw className="h-3 w-3" />撤销
+                </button>
+              )}
+            </div>
             <textarea
               value={getEditText(selected, currentPage.text_blocks[selected].polished_text || currentPage.text_blocks[selected].translated_text)}
               onChange={(e) => setEditText(selected, e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                  e.preventDefault()
+                  undoEdit(selected)
+                }
+              }}
               rows={2}
               className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-y"
             />
