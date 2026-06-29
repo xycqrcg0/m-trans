@@ -259,6 +259,14 @@ export async function submitEdits(
   return data
 }
 
+export async function updateTaskConfig(
+  taskId: string,
+  config: Partial<TaskConfig>,
+): Promise<{ task_id: string; updated: string[] }> {
+  const { data } = await http.patch(`/tasks/${taskId}/config`, config)
+  return data
+}
+
 export async function renderPreview(
   taskId: string,
   pageIndex: number,
@@ -373,6 +381,7 @@ export interface FontInfo {
   path: string
   builtin: boolean
   cjk: boolean
+  note: string
 }
 
 export async function listFonts(): Promise<{ fonts: FontInfo[] }> {
@@ -389,4 +398,8 @@ export async function uploadFont(file: File): Promise<FontInfo> {
 
 export async function deleteFont(filename: string): Promise<void> {
   await http.delete(`/fonts/${encodeURIComponent(filename)}`)
+}
+
+export async function updateFontNote(filename: string, note: string): Promise<void> {
+  await http.patch(`/fonts/${encodeURIComponent(filename)}/note`, { note })
 }

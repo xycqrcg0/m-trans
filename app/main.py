@@ -479,6 +479,26 @@ async def submit_edits(task_id: str, edits: dict):
     )
     return {"task_id": task.id, "status": task.status.value}
 
+@app.patch("/api/tasks/{task_id}/config", summary="更新任务配置（字体等渲染参数）")
+async def update_task_config(task_id: str, payload: dict):
+    """Update render-related config fields on a task. Only font/render fields
+    are accepted; translator/detector/ocr cannot be changed after processing.
+    The updated config takes effect on the next preview render and final submit.
+    """
+    task = worker.task_store.get(task_id) or worker.load_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    allowed = {"font_path", "font_size_offset", "font_size_minimum",
+               "line_spacing", "disable_font_border"}
+    updates = {k: v for k, v in payload.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="没有可更新的字段")
+    for k, v in updates.items():
+        setattr(task.config, k, v)
+    worker.task_store[task.id] = task
+    worker.save_task(task)
+    return {"task_id": task.id, "updated": list(updates.keys())}
+
 
 @app.post("/api/tasks/{task_id}/cancel", summary="终止运行中的任务")
 async def cancel_task(task_id: str):
@@ -869,10 +889,18 @@ async def clear_cache():
 
 @app.get("/api/fonts", summary="获取可用字体列表")
 async def list_fonts():
-    """List all available fonts with CJK support detection."""
+    """List all available fonts with CJK support detection and user notes."""
     from fontTools.ttLib import TTFont, TTCollection
+    import json as _json
     fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
     user_dir = fonts_dir / "user_fonts"
+    notes_path = fonts_dir / "font_notes.json"
+    notes: dict[str, str] = {}
+    if notes_path.exists():
+        try:
+            notes = _json.loads(notes_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
     result = []
 
     def _has_cjk(path: str) -> bool:
@@ -887,12 +915,34 @@ async def list_fonts():
             return False
 
     for f in sorted(fonts_dir.glob("*.[to]t[fc]")):
-        result.append({"name": f.name, "path": str(f), "builtin": True, "cjk": _has_cjk(str(f))})
+        result.append({"name": f.name, "path": str(f), "builtin": True,
+                       "cjk": _has_cjk(str(f)), "note": notes.get(f.name, "")})
     if user_dir.exists():
         for f in sorted(user_dir.glob("*.[to]t[fc]")):
-            result.append({"name": f.name, "path": str(f), "builtin": False, "cjk": _has_cjk(str(f))})
+            result.append({"name": f.name, "path": str(f), "builtin": False,
+                           "cjk": _has_cjk(str(f)), "note": notes.get(f.name, "")})
     return {"fonts": result}
 
+
+@app.patch("/api/fonts/{filename}/note", summary="更新字体备注")
+async def update_font_note(filename: str, payload: dict):
+    """Set or clear a user note for a font file."""
+    import json as _json
+    fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
+    notes_path = fonts_dir / "font_notes.json"
+    notes: dict[str, str] = {}
+    if notes_path.exists():
+        try:
+            notes = _json.loads(notes_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    note = (payload.get("note") or "").strip()
+    if note:
+        notes[filename] = note
+    else:
+        notes.pop(filename, None)
+    notes_path.write_text(_json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"name": filename, "note": note}
 
 @app.post("/api/fonts/upload", summary="上传自定义字体")
 async def upload_font(file: UploadFile = File(...)):
@@ -907,7 +957,7 @@ async def upload_font(file: UploadFile = File(...)):
     user_dir.mkdir(parents=True, exist_ok=True)
     dest = user_dir / Path(file.filename).name
     dest.write_bytes(content)
-    return {"name": dest.name, "path": str(dest)}
+    return {"name": dest.name, "path": str(dest), "builtin": False, "cjk": False, "note": ""}
 
 
 @app.delete("/api/fonts/{filename}", summary="删除用户字体")

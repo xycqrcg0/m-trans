@@ -5,6 +5,8 @@ import {
   submitEdits,
   renderPreview,
   getInpaintedUrl,
+  getTask,
+  updateTaskConfig,
   listGlossaries,
   addGlossaryEntry,
   type EditablePage,
@@ -12,6 +14,7 @@ import {
 } from '@/lib/api'
 import { PositionCanvas } from '@/components/PositionCanvas'
 import { Switch } from '@/components/ui/switch'
+import { FontSelector } from '@/components/FontSelector'
 
 interface TranslationEditorProps {
   taskId: string
@@ -38,6 +41,8 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   const renderTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [glossaries, setGlossaries] = useState<GlossaryMeta[]>([])
   const [addTermMsg, setAddTermMsg] = useState<string | null>(null)
+  const [fontPath, setFontPath] = useState('')
+  const [showFontSettings, setShowFontSettings] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   // No auto-scroll — keep page position stable during block selection
@@ -61,6 +66,10 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
   useEffect(() => {
     listGlossaries().then(res => setGlossaries(res)).catch(() => {})
   }, [])
+  // Fetch the task's current font_path so the selector shows the right value
+  useEffect(() => {
+    getTask(taskId).then(t => setFontPath(t.config.font_path ?? '')).catch(() => {})
+  }, [taskId])
   const pageKey = String(pageIndex)
   const currentPage = pages.find(p => p.page_index === pageIndex) ?? null
   const pageOffsets = offsets[pageKey] ?? {}
@@ -86,6 +95,17 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       delete po[bIdx]
       return { ...prev, [pageKey]: po }
     })
+  }
+
+  /** Update the task's font_path on the backend, then re-render the preview. */
+  async function handleFontChange(path: string) {
+    setFontPath(path)
+    try {
+      await updateTaskConfig(taskId, { font_path: path })
+      void renderDefault()
+    } catch {
+      setError('更新字体配置失败')
+    }
   }
 
   /**
@@ -249,6 +269,23 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
         ) : (
           <div className="flex items-center justify-center py-16 text-sm text-slate-400">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />渲染默认嵌字效果…
+          </div>
+        )}
+      </div>
+
+      {/* Font settings: change font and see the effect via re-render */}
+      <div className="rounded-lg border border-slate-200">
+        <button
+          onClick={() => setShowFontSettings(!showFontSettings)}
+          className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <span>字体设置</span>
+          <span className="text-xs text-slate-400">{showFontSettings ? '收起' : '展开'}</span>
+        </button>
+        {showFontSettings && (
+          <div className="border-t border-slate-100 px-3 py-3">
+            <FontSelector value={fontPath} onChange={handleFontChange} />
+            <p className="mt-1.5 text-xs text-slate-400">切换字体后自动重新渲染预览</p>
           </div>
         )}
       </div>
