@@ -274,7 +274,7 @@ async def get_result(task_id: str, page: int = 1):
     result_path = Path(pg.result_path)
     if not result_path.exists():
         raise HTTPException(status_code=404, detail="结果文件已被删除")
-    return FileResponse(path=str(result_path), media_type="image/png", filename=f"translated_{task_id}_p{page}.png")
+    return FileResponse(path=str(result_path), media_type="image/png", filename=f"{task.name or task_id}_p{page}.png")
 
 
 @app.get("/api/tasks/{task_id}/inpainted", summary="下载擦字图 PNG（按页码）")
@@ -326,7 +326,7 @@ async def download_all_results(task_id: str, format: str = "zip"):
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="translated_{task_id}.{fmt}"'},
+        headers={"Content-Disposition": f'attachment; filename="{task.name or task_id}.{fmt}"'},
     )
 
 @app.get("/api/tasks/{task_id}/edit", summary="获取可编辑的翻译文本块")
