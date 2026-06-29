@@ -30,7 +30,13 @@ export default function Home() {
       await createTask(files, config)
       navigate('/tasks')
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '提交失败'
+      let msg = '提交失败'
+      if (e && typeof e === 'object' && 'response' in e) {
+        const resp = e as { response?: { data?: { detail?: string } } }
+        msg = resp.response?.data?.detail || msg
+      } else if (e instanceof Error) {
+        msg = e.message
+      }
       setError(msg)
     } finally {
       setLoading(false)
