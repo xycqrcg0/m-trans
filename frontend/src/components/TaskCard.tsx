@@ -4,7 +4,7 @@ import { CheckCircle, XCircle, Clock, Loader2, ChevronRight, ChevronDown, Chevro
 import { Progress } from '@/components/ui/progress'
 import { useTaskProgress } from '@/hooks/useTaskProgress'
 import { cancelTask, deleteTask, type Task, type TaskStatus, type PageStatus } from '@/lib/api'
-
+import { useToast } from '@/components/ui/toast'
 const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: '等待中', detecting: '检测文字', ocr: '识别文字',
   translating: '翻译中', polishing: '润色中', inpainting: '修复图像',
@@ -58,20 +58,20 @@ export function TaskCard({ task, onChanged }: TaskCardProps) {
   const displayName = task.name || task.pages[0]?.filename || '未知文件'
   const isArchive = task.pages.length > 1
   const createdAt = new Date(task.created_at).toLocaleString('zh-CN')
-
   // Count pages by status for the folder summary
   const readyCount = task.pages.filter(p => p.status === 'awaiting_edit').length
   const doneCount = task.pages.filter(p => p.status === 'done').length
+  const toast = useToast()
 
   async function handleCancel() {
     setBusy(true)
-    try { await cancelTask(task.id); onChanged?.() } catch { /* ignore */ }
+    try { await cancelTask(task.id); onChanged?.() } catch { toast.error('取消任务失败') }
     setBusy(false)
   }
 
   async function handleDelete() {
     setBusy(true)
-    try { await deleteTask(task.id); onChanged?.() } catch { /* ignore */ }
+    try { await deleteTask(task.id); onChanged?.() } catch { toast.error('删除任务失败') }
     setBusy(false)
   }
 

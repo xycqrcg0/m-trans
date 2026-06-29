@@ -14,6 +14,7 @@ import {
   type FontInfo,
   type CustomTranslatorPreset,
 } from '@/lib/api'
+import { useToast } from '@/components/ui/toast'
 
 // Feature tags for translators, shown as colored badges on config cards.
 const _TRANSLATOR_TAGS: Record<string, { text: string; cls: string }[]> = {
@@ -83,11 +84,10 @@ export default function Settings() {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-              tab === id
-                ? 'border-slate-900 text-slate-900'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${tab === id
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
           >
             <Icon className="h-4 w-4" />{label}
           </button>
@@ -111,7 +111,7 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
   const [presets, setPresets] = useState<CustomTranslatorPreset[]>([])
   const [editingPreset, setEditingPreset] = useState<Partial<CustomTranslatorPreset> | null>(null)
   const [savingPreset, setSavingPreset] = useState(false)
-
+  const toast = useToast()
   async function load() {
     setLoading(true)
     try {
@@ -141,6 +141,9 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
       const values = editValues[translator] || {}
       await saveTranslatorConfig({ translator, values })
       await load()
+      toast.success('配置已保存')
+    } catch {
+      toast.error('保存配置失败')
     } finally {
       setSaving(null)
     }
@@ -153,7 +156,8 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
       await saveCustomTranslator(editingPreset)
       setEditingPreset(null)
       await loadPresets()
-    } catch { /* ignore */ }
+      toast.success('预设已保存')
+    } catch { toast.error('保存预设失败') }
     setSavingPreset(false)
   }
 
@@ -161,7 +165,8 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
     try {
       await deleteCustomTranslator(id)
       await loadPresets()
-    } catch { /* ignore */ }
+      toast.success('预设已删除')
+    } catch { toast.error('删除预设失败') }
   }
 
   if (loading) return <div className="text-center text-sm text-slate-400 py-8">加载中…</div>
@@ -275,7 +280,7 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
                     type="text"
                     value={editingPreset.name ?? ''}
                     onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
-                    placeholder="如：我的 GPT-4o"
+                    placeholder=""
                     className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                   />
                 </div>
@@ -311,7 +316,7 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
                     type="text"
                     value={editingPreset.api_base ?? ''}
                     onChange={(e) => setEditingPreset({ ...editingPreset, api_base: e.target.value })}
-                    placeholder="https://api.openai.com/v1"
+                    placeholder="e.g.: https://api.openai.com/v1"
                     className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                   />
                 </div>
@@ -321,7 +326,7 @@ function TranslatorTab({ category }: { category: 'translator' | 'llm' }) {
                     type="text"
                     value={editingPreset.model ?? ''}
                     onChange={(e) => setEditingPreset({ ...editingPreset, model: e.target.value })}
-                    placeholder="如：gpt-4o、qwen2.5:14b"
+                    placeholder=""
                     className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
                   />
                 </div>
@@ -402,6 +407,7 @@ function FontTab() {
   const [noteDraft, setNoteDraft] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const fileRef = useState<HTMLInputElement | null>(null)
+  const toast = useToast()
 
   async function loadFonts() {
     setLoading(true)
@@ -417,11 +423,11 @@ function FontTab() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true)
     try {
       await uploadFont(file)
       await loadFonts()
-    } catch { /* ignore */ }
+      toast.success('字体上传成功')
+    } catch { toast.error('字体上传失败') }
     setUploading(false)
     if (e.target) e.target.value = ''
   }
@@ -430,7 +436,7 @@ function FontTab() {
     try {
       await deleteFont(name)
       await loadFonts()
-    } catch { /* ignore */ }
+    } catch { toast.error('删除字体失败') }
   }
 
   function startEditNote(font: FontInfo) {
@@ -443,7 +449,7 @@ function FontTab() {
     try {
       await updateFontNote(name, noteDraft)
       await loadFonts()
-    } catch { /* ignore */ }
+    } catch { toast.error('保存备注失败') }
     setSavingNote(false)
     setEditingNote(null)
   }
@@ -453,9 +459,6 @@ function FontTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
-          上传、删除字体文件，或为字体添加备注。上传的字体可在新建任务时选择，也可在嵌字前编辑中切换并预览效果。
-        </p>
         <div>
           <input
             ref={fileRef as unknown as React.RefObject<HTMLInputElement>}

@@ -15,6 +15,7 @@ import {
 import { PositionCanvas } from '@/components/PositionCanvas'
 import { Switch } from '@/components/ui/switch'
 import { FontSelector } from '@/components/FontSelector'
+import { useToast } from '@/components/ui/toast'
 
 interface TranslationEditorProps {
   taskId: string
@@ -25,6 +26,7 @@ interface TranslationEditorProps {
 const RENDER_DEBOUNCE_MS = 600
 
 export function TranslationEditor({ taskId, pageIndex, onCompleted }: TranslationEditorProps) {
+  const toast = useToast()
   const [pages, setPages] = useState<EditablePage[]>([])
   const [edits, setEdits] = useState<Record<string, Record<number, string>>>({})
   const [offsets, setOffsets] = useState<Record<string, Record<number, [number, number]>>>({})
@@ -105,6 +107,7 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       void renderDefault()
     } catch {
       setError('更新字体配置失败')
+      toast.error('更新字体配置失败')
     }
   }
 
@@ -124,8 +127,12 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       const offs = currentPage.text_blocks.map(() => [0, 0])
       const url = await renderPreview(taskId, pageIndex, texts, offs)
       setRenderedUrl(old => { if (old) URL.revokeObjectURL(old); return url })
-    } catch {
-      setError('预览渲染失败')
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'code' in e && e.code === 'ECONNABORTED'
+        ? '预览渲染超时，请稍后重试'
+        : '预览渲染失败'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setRendering(false)
     }
@@ -188,6 +195,7 @@ export function TranslationEditor({ taskId, pageIndex, onCompleted }: Translatio
       onCompleted()
     } catch {
       setError('提交失败，请重试')
+      toast.error('提交失败，请重试')
       setSubmitting(false)
     }
   }

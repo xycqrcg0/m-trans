@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { Upload, ListTodo, BookOpen, Settings as SettingsIcon, ScrollText, Languages } from 'lucide-react'
+import { ToastProvider } from '@/components/ui/toast'
 import Home from '@/pages/Home'
 import Tasks from '@/pages/Tasks'
 import TaskDetail from '@/pages/TaskDetail'
@@ -53,20 +54,22 @@ function Nav() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-50">
-        <Nav />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/tasks/:id" element={<TaskDetail />} />
-            <Route path="/glossaries" element={<Glossaries />} />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/gallery" element={<Gallery />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </main>
-      </div>
+      <ToastProvider>
+        <div className="min-h-screen bg-slate-50">
+          <Nav />
+          <main>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/tasks/:id" element={<TaskDetail />} />
+              <Route path="/glossaries" element={<Glossaries />} />
+              <Route path="/logs" element={<Logs />} />
+              <Route path="/gallery" element={<Gallery />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </main>
+        </div>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

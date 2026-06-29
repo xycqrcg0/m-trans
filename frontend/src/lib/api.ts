@@ -300,7 +300,7 @@ export async function renderPreview(
     page_index: pageIndex,
     texts,
     offsets,
-  }, { responseType: 'blob' })
+  }, { responseType: 'blob', timeout: 30000 })
   return URL.createObjectURL(data)
 }
 
