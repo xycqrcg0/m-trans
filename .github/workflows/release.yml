@@ -38,10 +38,9 @@ jobs:
             variant: cpu
             runner: ubuntu-22.04
             archive: tar.gz
-          - os: linux
-            variant: cuda
-            runner: ubuntu-22.04
-            archive: tar.gz
+          # NOTE: linux-cuda omitted — the CUDA torch wheel pushes the bundle
+          # past GitHub Release's 2 GB single-asset limit. CPU build covers
+          # Linux; Windows CUDA is the only GPU bundle shipped for now.
 
     steps:
       - uses: actions/checkout@v4
@@ -108,13 +107,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: m-trans-${{ matrix.os }}-${{ matrix.variant }}
-          path: |
-            m-trans-${{ matrix.os }}-${{ matrix.variant }}.zip
-            m-trans-${{ matrix.os }}-${{ matrix.variant }}.tar.gz
+          path: m-trans-${{ matrix.os }}-${{ matrix.variant }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
 
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            m-trans-${{ matrix.os }}-${{ matrix.variant }}.zip
-            m-trans-${{ matrix.os }}-${{ matrix.variant }}.tar.gz
+          files: m-trans-${{ matrix.os }}-${{ matrix.variant }}.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
