@@ -137,10 +137,15 @@ def main() -> int:
             text_select=True,
         )
         webview.start()
-        # Window closed — daemon thread dies with the process.
+        # Window closed. Force-exit the whole process: uvicorn + the worker
+        # ThreadPoolExecutors run non-daemon threads that keep the interpreter
+        # alive past main() returning, leaving a zombie process on Windows.
+        # os._exit skips atexit/thread-join cleanup — exactly what we want for
+        # a desktop app whose window just closed.
+        os._exit(0)
     except Exception as e:
         logger.exception("GUI failed: %s", e)
-        return 1
+        os._exit(1)
     return 0
 
 

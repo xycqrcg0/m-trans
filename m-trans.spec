@@ -80,6 +80,7 @@ for pkg in (
     "sentencepiece",
     "pyclipper",
     "shapely",
+    "py3langid",
     "pydensecrf",
     "fontTools",
     "webview",
