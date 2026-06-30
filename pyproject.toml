@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "python-multipart>=0.0.9",
     "aiofiles>=23.0.0",
+    "pywebview>=5.0",
 ]
 
 [tool.hatch.build.targets.wheel]

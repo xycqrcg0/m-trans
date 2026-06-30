@@ -52,6 +52,12 @@ pydantic==2.5.0
 google-genai
 rich
 regex
---extra-index-url https://frederik-uni.github.io/manga-image-translator-rust/python/wheels/simple/
-rusty-manga-image-translator
+# NOTE: rusty-manga-image-translator provides an optional faster Paddle
+# detector. Its published wheels are corrupt on Windows and unreliable on
+# Linux; the app falls back to the pure-Python detectors when it is absent
+# (see manga_translator/detection/__init__.py). Left commented out so a
+# fresh `pip install -r requirements.txt` succeeds out of the box. Enable
+# only if you have a known-good wheel for your platform.
+# --extra-index-url https://frederik-uni.github.io/manga-image-translator-rust/python/wheels/simple/
+# rusty-manga-image-translator
 python-bidi

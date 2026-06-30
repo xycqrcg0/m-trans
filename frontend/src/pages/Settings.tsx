@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { KeyRound, Check, AlertCircle, Loader2, Type, Upload, Trash2, Pencil, X, Languages, Bot } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { KeyRound, Check, AlertCircle, Loader2, Type, Upload, Trash2, Pencil, X, Languages, Bot, Boxes, Download, Ban } from 'lucide-react'
 import {
   getTranslatorConfigs,
   saveTranslatorConfig,
@@ -10,13 +10,17 @@ import {
   uploadFont,
   deleteFont,
   updateFontNote,
+  listModels,
+  downloadModel,
+  cancelModelDownload,
+  subscribeModelProgress,
   type TranslatorConfigItem,
   type FontInfo,
   type CustomTranslatorPreset,
+  type ModelDownloadState,
 } from '@/lib/api'
 import { useToast } from '@/components/ui/toast'
 
-// Feature tags for translators, shown as colored badges on config cards.
 const _TRANSLATOR_TAGS: Record<string, { text: string; cls: string }[]> = {
   google: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }, { text: '免费', cls: 'bg-slate-100 text-slate-500' }],
   youdao: [{ text: '在线', cls: 'bg-blue-50 text-blue-600' }],
@@ -62,7 +66,7 @@ const _TRANSLATOR_DESC: Record<string, string> = {
   jparacrawl_big: '离线翻译（大模型），仅支持日↔英，首次使用需下载模型',
 }
 
-type Tab = 'translator' | 'llm' | 'font'
+type Tab = 'translator' | 'llm' | 'font' | 'models'
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>('translator')
@@ -80,6 +84,7 @@ export default function Settings() {
           { id: 'translator' as Tab, label: '翻译器', icon: Languages },
           { id: 'llm' as Tab, label: 'LLM', icon: Bot },
           { id: 'font' as Tab, label: '字体', icon: Type },
+          { id: 'models' as Tab, label: '模型', icon: Boxes },
         ]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -97,6 +102,7 @@ export default function Settings() {
       {tab === 'translator' && <TranslatorTab category="translator" />}
       {tab === 'llm' && <TranslatorTab category="llm" />}
       {tab === 'font' && <FontTab />}
+      {tab === 'models' && <ModelsTab />}
     </div>
   )
 }
@@ -553,6 +559,167 @@ function FontTab() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ── Model download management tab ───────────────────────────────────────────
+
+const _MODEL_CATEGORY_LABELS: Record<string, string> = {
+  detector: '文字检测',
+  ocr: '文字识别 (OCR)',
+  inpainter: '图像修复',
+}
+
+function ModelsTab() {
+  const [models, setModels] = useState<ModelDownloadState[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const esRef = useRef<EventSource | null>(null)
+  const toast = useToast()
+
+  async function loadModels() {
+    try {
+      const res = await listModels()
+      setModels(res.models)
+    } catch { /* ignore */ }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadModels()
+    // Subscribe to live progress updates.
+    esRef.current = subscribeModelProgress((updated) => {
+      setModels(updated)
+      // Clear busy state when a download finishes or errors for that model.
+      setBusy((prev) => {
+        if (!prev) return prev
+        const m = updated.find((x) => `${x.category}/${x.id}` === prev)
+        if (m && (m.status === 'done' || m.status === 'error' || m.status === 'idle')) {
+          if (m.status === 'done') toast.success(`${m.display_name} 下载完成`)
+          if (m.status === 'error') toast.error(`${m.display_name} 下载失败`)
+          return null
+        }
+        return prev
+      })
+    })
+    return () => { esRef.current?.close() }
+  }, [])
+
+  async function handleDownload(m: ModelDownloadState) {
+    setBusy(`${m.category}/${m.id}`)
+    try {
+      await downloadModel(m.category, m.id)
+      // The SSE stream will update progress; optimistic status refresh.
+      await loadModels()
+    } catch {
+      toast.error(`触发 ${m.display_name} 下载失败`)
+      setBusy(null)
+    }
+  }
+
+  async function handleCancel(m: ModelDownloadState) {
+    setBusy(`${m.category}/${m.id}`)
+    try {
+      await cancelModelDownload(m.category, m.id)
+      toast.info(`已取消 ${m.display_name} 下载`)
+    } catch {
+      toast.error(`取消失败`)
+    } finally {
+      setBusy(null)
+      await loadModels()
+    }
+  }
+
+  if (loading) return <div className="text-center text-sm text-slate-400 py-8">加载中…</div>
+
+  // Group by category preserving order.
+  const grouped: Record<string, ModelDownloadState[]> = {}
+  for (const m of models) {
+    ;(grouped[m.category] ??= []).push(m)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-700">
+        模型文件较大（数十 MB ~ 数 GB），首次使用需下载。下载会缓存到程序目录下的 <code className="font-mono">models/</code>，可手动删除后重新下载。
+      </div>
+      {Object.entries(grouped).map(([cat, items]) => (
+        <div key={cat} className="space-y-2">
+          <h3 className="text-sm font-semibold text-slate-700">{_MODEL_CATEGORY_LABELS[cat] ?? cat}</h3>
+          <div className="space-y-2">
+            {items.map((m) => {
+              const key = `${m.category}/${m.id}`
+              const isBusy = busy === key || m.status === 'downloading' || m.status === 'queued'
+              const pct = Math.round((m.progress ?? 0) * 100)
+              return (
+                <div key={key} className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-slate-900">{m.display_name}</span>
+                        {m.status === 'done' && (
+                          <span className="shrink-0 rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-600">已下载</span>
+                        )}
+                        {m.status === 'downloading' && (
+                          <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-600">下载中 {pct}%</span>
+                        )}
+                        {m.status === 'queued' && (
+                          <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">排队中</span>
+                        )}
+                        {m.status === 'error' && (
+                          <span className="shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-500">失败</span>
+                        )}
+                      </div>
+                      {m.error && (
+                        <p className="mt-1 text-xs text-red-500 truncate" title={m.error}>{m.error}</p>
+                      )}
+                      {m.path && (
+                        <p className="mt-0.5 text-xs text-slate-400 truncate" title={m.path}>路径: {m.path}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {m.status === 'downloading' || m.status === 'queued' ? (
+                        <button
+                          onClick={() => handleCancel(m)}
+                          disabled={busy === key}
+                          className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:border-red-200 hover:text-red-500 disabled:opacity-50"
+                        >
+                          <Ban className="h-3 w-3" />取消
+                        </button>
+                      ) : m.status === 'done' ? (
+                        <button
+                          onClick={() => handleDownload(m)}
+                          className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+                        >
+                          <Download className="h-3 w-3" />重新下载
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDownload(m)}
+                          disabled={isBusy}
+                          className="flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                          下载
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {(m.status === 'downloading' || m.status === 'queued') && (
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                        style={{ width: `${Math.max(2, pct)}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

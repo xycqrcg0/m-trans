@@ -35,7 +35,18 @@ _translator: Optional[MangaTranslator] = None
 _translator_lock = threading.Lock()
 _pipeline_lock = threading.Lock()
 
-_DICT_DIR = Path(__file__).resolve().parent.parent / "dict"
+def _resolve_dict_dir() -> Path:
+    """Locate the dictionaries dir. In frozen mode they're bundled in
+    _MEIPASS/dict (read-only); in dev they're at the project root."""
+    import sys as _sys
+    if getattr(_sys, "frozen", False):
+        meipass = getattr(_sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass) / "dict"
+    return Path(__file__).resolve().parent.parent / "dict"
+
+
+_DICT_DIR = _resolve_dict_dir()
 _PRE_DICT = _DICT_DIR / "pre_dict.txt"
 _POST_DICT = _DICT_DIR / "post_dict.txt"
 
@@ -45,7 +56,10 @@ async def get_translator() -> MangaTranslator:
     with _translator_lock:
         if _translator is None:
             # Redirect the library's intermediate result output away from
-            # the project root into our storage area.
+            # the project root / _MEIPASS into our writable storage area.
+            # Font lookups via BASE_PATH are handled separately by setting
+            # translator.font_path to an absolute path (see run_pipeline /
+            # render_pipeline), so we don't need a fonts/ entry here.
             import manga_translator.utils.generic as _generic
             _generic.BASE_PATH = str(settings.mt_result_dir)
             settings.mt_result_dir.mkdir(parents=True, exist_ok=True)
@@ -57,6 +71,7 @@ async def get_translator() -> MangaTranslator:
                     "ignore_errors": False,
                     "pre_dict": str(_PRE_DICT),
                     "post_dict": str(_POST_DICT),
+                    "model_dir": str(settings.model_dir),
                 }
             )
     return _translator
@@ -191,7 +206,11 @@ async def run_pipeline(
         if task_cfg.font_path:
             translator.font_path = task_cfg.font_path
         else:
-            translator.font_path = None
+            # Provide an absolute font path so the library doesn't fall back to
+            # BASE_PATH/fonts/ (which is redirected to mt_result_dir and would
+            # miss the bundled fonts in frozen mode).
+            _default_font = settings.builtin_fonts_dir / "msyh.ttc"
+            translator.font_path = str(_default_font) if _default_font.exists() else None
         polish_fn = _make_polish_fn(task_cfg)
 
         old_glossary_path = os.environ.get("OPENAI_GLOSSARY_PATH")
@@ -278,7 +297,8 @@ async def render_pipeline(ctx: Context, task_cfg: TaskConfig) -> Context:
         if task_cfg.font_path:
             translator.font_path = task_cfg.font_path
         else:
-            translator.font_path = None
+            _default_font = settings.builtin_fonts_dir / "msyh.ttc"
+            translator.font_path = str(_default_font) if _default_font.exists() else None
         ctx = await translator.render_translations(config, ctx)
     return ctx
 

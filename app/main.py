@@ -1,8 +1,18 @@
-from __future__ import annotations
 import asyncio
 import json
 import logging
 import os
+import sys
+
+# Frozen GUI builds (console=False) have sys.stdout/stderr == None, which
+# crashes uvicorn's logging formatter and logging.StreamHandler(). Redirect
+# to devnull before any logging is configured.
+if getattr(sys, "frozen", False):
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8", errors="ignore")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8", errors="ignore")
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
@@ -589,7 +599,10 @@ async def get_options():
         OptionItem(id=Ocr.mocr.value, name="Manga OCR"),
     ]
     inpainters = [
+        OptionItem(id=Inpainter.default.value, name="AOT"),
+        OptionItem(id=Inpainter.lama_large.value, name="LaMa Large"),
         OptionItem(id=Inpainter.lama_mpe.value, name="LaMa MPE"),
+        OptionItem(id=Inpainter.sd.value, name="Stable Diffusion"),
         OptionItem(id=Inpainter.none.value, name="None"),
     ]
     return OptionsResponse(
@@ -937,6 +950,55 @@ async def get_model_status():
 
     return {"models": statuses}
 
+
+@app.get("/api/models/list", summary="模型下载列表（含进度）")
+async def list_models_endpoint():
+    """List downloadable models with current status + progress. Supersedes
+    /api/models/status with display names and progress fields; the legacy
+    status endpoint is kept for backwards compatibility."""
+    from app.model_downloads import list_states
+    return {"models": await list_states()}
+
+
+@app.post("/api/models/{category}/{model_id}/download", summary="触发模型下载")
+async def download_model_endpoint(category: str, model_id: str):
+    """Start downloading a model in the background. Idempotent: re-requesting
+    a running download is a no-op."""
+    from app.model_downloads import start_download
+    result = await start_download(category, model_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "failed"))
+    return result
+
+
+@app.post("/api/models/{category}/{model_id}/cancel", summary="取消模型下载")
+async def cancel_model_endpoint(category: str, model_id: str):
+    from app.model_downloads import cancel_download
+    result = await cancel_download(category, model_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "failed"))
+    return result
+
+
+@app.get("/api/models/progress", summary="模型下载进度 (SSE)")
+async def model_download_progress():
+    """Server-sent events stream of model download progress. Emits a snapshot
+    of all model states roughly every second until the client disconnects."""
+    from app.model_downloads import list_states
+    import asyncio as _aio
+
+    async def _event_stream():
+        last_payload = None
+        while True:
+            states = await list_states()
+            payload = json.dumps({"models": states}, ensure_ascii=False)
+            if payload != last_payload:
+                last_payload = payload
+                yield f"data: {payload}\n\n"
+            await _aio.sleep(1.0)
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+
 @app.get("/api/logs", summary="日志文件列表")
 async def get_logs():
     return {"files": list_log_files()}
@@ -975,9 +1037,9 @@ async def list_fonts():
     """List all available fonts with CJK support detection and user notes."""
     from fontTools.ttLib import TTFont, TTCollection
     import json as _json
-    fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
-    user_dir = fonts_dir / "user_fonts"
-    notes_path = fonts_dir / "font_notes.json"
+    builtin_dir = settings.builtin_fonts_dir
+    user_dir = settings.fonts_dir / "user_fonts"
+    notes_path = settings.fonts_dir / "font_notes.json"
     notes: dict[str, str] = {}
     if notes_path.exists():
         try:
@@ -997,7 +1059,7 @@ async def list_fonts():
         except Exception:
             return False
 
-    for f in sorted(fonts_dir.glob("*.[to]t[fc]")):
+    for f in sorted(builtin_dir.glob("*.[to]t[fc]")):
         result.append({"name": f.name, "path": str(f), "builtin": True,
                        "cjk": _has_cjk(str(f)), "note": notes.get(f.name, "")})
     if user_dir.exists():
@@ -1011,8 +1073,7 @@ async def list_fonts():
 async def update_font_note(filename: str, payload: dict):
     """Set or clear a user note for a font file."""
     import json as _json
-    fonts_dir = Path(__file__).resolve().parent.parent / "fonts"
-    notes_path = fonts_dir / "font_notes.json"
+    notes_path = settings.fonts_dir / "font_notes.json"
     notes: dict[str, str] = {}
     if notes_path.exists():
         try:
@@ -1036,7 +1097,7 @@ async def upload_font(file: UploadFile = File(...)):
     content = await file.read()
     if len(content) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="字体文件不能超过 50MB")
-    user_dir = Path(__file__).resolve().parent.parent / "fonts" / "user_fonts"
+    user_dir = settings.fonts_dir / "user_fonts"
     user_dir.mkdir(parents=True, exist_ok=True)
     dest = user_dir / Path(file.filename).name
     dest.write_bytes(content)
@@ -1045,7 +1106,7 @@ async def upload_font(file: UploadFile = File(...)):
 
 @app.delete("/api/fonts/{filename}", summary="删除用户字体")
 async def delete_font(filename: str):
-    user_dir = Path(__file__).resolve().parent.parent / "fonts" / "user_fonts"
+    user_dir = settings.fonts_dir / "user_fonts"
     path = user_dir / filename
     if not path.resolve().parent.samefile(user_dir.resolve()):
         raise HTTPException(status_code=400, detail="无效路径")
@@ -1053,3 +1114,72 @@ async def delete_font(filename: str):
         raise HTTPException(status_code=404, detail="字体不存在")
     path.unlink()
     return {"deleted": filename}
+
+# ── Static frontend (SPA) ─────────────────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
+
+
+def _resolve_frontend_dir() -> Path | None:
+    """Locate the built frontend dist.
+
+    Search order:
+    1. ``M_TRANS_FRONTEND_DIR`` env override (dev / custom layouts).
+    2. ``frontend/dist`` relative to the project root (dev checkout).
+    3. ``frontend_dist`` next to the frozen executable (PyInstaller one-dir).
+    """
+    candidates = []
+    env = os.environ.get("M_TRANS_FRONTEND_DIR")
+    if env:
+        candidates.append(Path(env))
+    project_root = Path(__file__).resolve().parent.parent
+    candidates.append(project_root / "frontend" / "dist")
+    # Frozen (PyInstaller): resources live in _MEIPASS (_internal/ in one-dir
+    # mode) AND beside the executable. Check both.
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(Path(meipass) / "frontend_dist")
+        candidates.append(Path(sys.executable).resolve().parent / "frontend_dist")
+    for c in candidates:
+        if (c / "index.html").is_file():
+            return c
+    return None
+
+
+_FRONTEND_DIR = _resolve_frontend_dir()
+
+if _FRONTEND_DIR is not None:
+    # Serve bundled assets (js/css/images). ``html=True`` makes the root serve
+    # index.html, but it does NOT fall back to index.html for unknown paths —
+    # which client-side routers (BrowserRouter) need. We add a catch-all below.
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str):
+        # Never shadow the API (handled above) or mounted assets.
+        candidate = _FRONTEND_DIR / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(str(candidate))
+        # Default document for all other routes → let the SPA router take over.
+        index = _FRONTEND_DIR / "index.html"
+        return FileResponse(str(index), media_type="text/html")
+
+    # Also serve favicon/icons at root if present.
+    for _static_file in ("favicon.svg", "icons.svg"):
+        _p = _FRONTEND_DIR / _static_file
+        if _p.is_file():
+            _name = _static_file
+            def _make_handler(fpath: Path):
+                async def _serve():
+                    return FileResponse(str(fpath))
+                return _serve
+            app.add_api_route(f"/{_name}", _make_handler(_p), include_in_schema=False)
+else:
+    @app.get("/", include_in_schema=False)
+    async def _no_frontend():
+        return Response(
+            "Frontend not built. Run `npm run build` in frontend/, or set "
+            "M_TRANS_FRONTEND_DIR to a directory containing index.html.",
+            media_type="text/plain",
+        )

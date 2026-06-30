@@ -1,0 +1,120 @@
+name: release
+
+# Triggered by a version tag (v0.1.0). Builds platform-specific desktop
+# bundles and attaches them to the GitHub Release created for the tag.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name (e.g. v0.1.0) — used for the release title"
+        required: true
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release to upload assets
+
+jobs:
+  build:
+    name: ${{ matrix.os }}-${{ matrix.variant }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows: one bundle, CUDA auto-detected at runtime via onnxruntime.
+          # (Shipping a separate 3 GB CUDA torch bundle is wasteful when
+          # onnxruntime-gpu + the user's local CUDA driver cover GPU inference.)
+          - os: windows
+            variant: cpu
+            runner: windows-latest
+            archive: zip
+          - os: windows
+            variant: cuda
+            runner: windows-latest
+            archive: zip
+          - os: linux
+            variant: cpu
+            runner: ubuntu-22.04
+            archive: tar.gz
+          - os: linux
+            variant: cuda
+            runner: ubuntu-22.04
+            archive: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Build (Windows, CPU)
+        if: matrix.os == 'windows' && matrix.variant == 'cpu'
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Build (Windows, CUDA)
+        if: matrix.os == 'windows' && matrix.variant == 'cuda'
+        shell: pwsh
+        run: ./build.ps1 -Cuda
+
+      - name: Build (Linux)
+        if: matrix.os == 'linux'
+        env:
+          M_TRANS_BUILD_CUDA: ${{ matrix.variant == 'cuda' && '1' || '0' }}
+        run: |
+          # Linux webview (pywebview) needs GTK for the native window.
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libglib2.0-dev libgirepository1.0-dev
+          if [ "${{ matrix.variant }}" = "cuda" ]; then
+            ./build.sh --cuda
+          else
+            ./build.sh
+          fi
+
+      - name: Rename bundle dir
+        shell: bash
+        run: |
+          variant="${{ matrix.variant }}"
+          os="${{ matrix.os }}"
+          src="dist/m-trans"
+          dst="dist/m-trans-${os}-${variant}"
+          mv "$src" "$dst"
+          echo "BUNDLE_DIR=$dst" >> $GITHUB_ENV
+
+      - name: Archive (zip)
+        if: matrix.archive == 'zip'
+        shell: bash
+        run: |
+          cd dist
+          7z a -tzip "../m-trans-${{ matrix.os }}-${{ matrix.variant }}.zip" "$(basename $BUNDLE_DIR)"
+
+      - name: Archive (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          cd dist
+          tar -czf "../m-trans-${{ matrix.os }}-${{ matrix.variant }}.tar.gz" "$(basename $BUNDLE_DIR)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: m-trans-${{ matrix.os }}-${{ matrix.variant }}
+          path: |
+            m-trans-${{ matrix.os }}-${{ matrix.variant }}.zip
+            m-trans-${{ matrix.os }}-${{ matrix.variant }}.tar.gz
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            m-trans-${{ matrix.os }}-${{ matrix.variant }}.zip
+            m-trans-${{ matrix.os }}-${{ matrix.variant }}.tar.gz

@@ -171,6 +171,49 @@ export async function getModelStatus(): Promise<{ models: ModelStatus[] }> {
   return data
 }
 
+// ── Model download (new) ────────────────────────────────────────────────────
+export interface ModelDownloadState {
+  category: string
+  id: string
+  display_name: string
+  status: 'idle' | 'queued' | 'downloading' | 'done' | 'error' | 'cancelled'
+  progress: number  // 0..1
+  error?: string
+  path?: string
+}
+
+export async function listModels(): Promise<{ models: ModelDownloadState[] }> {
+  const { data } = await http.get('/models/list')
+  return data
+}
+
+export async function downloadModel(category: string, id: string): Promise<{ ok: boolean; status?: string; message?: string }> {
+  const { data } = await http.post(`/models/${category}/${id}/download`)
+  return data
+}
+
+export async function cancelModelDownload(category: string, id: string): Promise<{ ok: boolean; status?: string }> {
+  const { data } = await http.post(`/models/${category}/${id}/cancel`)
+  return data
+}
+
+/** SSE stream of model download progress. Returns the EventSource (close it on
+ * unmount) and an onMessage callback registration helper. */
+export function subscribeModelProgress(
+  onUpdate: (models: ModelDownloadState[]) => void,
+): EventSource {
+  const es = new EventSource('/api/models/progress')
+  es.onmessage = (ev) => {
+    try {
+      const payload = JSON.parse(ev.data) as { models: ModelDownloadState[] }
+      onUpdate(payload.models)
+    } catch {
+      /* ignore malformed frames */
+    }
+  }
+  return es
+}
+
 export interface HealthResponse {
   status: string
   gpu: boolean
