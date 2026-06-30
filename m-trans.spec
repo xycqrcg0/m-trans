@@ -119,9 +119,12 @@ datas += collect_data_files("app")
 datas += collect_data_files("config")
 datas += collect_data_files("manga_translator")
 
-# Dictionaries + glossaries (small, required at runtime).
+# Dictionaries (small, required at runtime). Glossaries dir is optional —
+# default.json is generated at runtime; the dir may be absent in CI.
 datas += [(str(PROJECT_ROOT / "dict"), "dict")]
-datas += [(str(PROJECT_ROOT / "glossaries"), "glossaries")]
+_glossaries_dir = PROJECT_ROOT / "glossaries"
+if _glossaries_dir.is_dir():
+    datas += [(str(_glossaries_dir), "glossaries")]
 
 # Frontend build → frontend_dist/ (matches _resolve_frontend_dir() frozen path).
 frontend_dist = PROJECT_ROOT / "frontend" / "dist"
